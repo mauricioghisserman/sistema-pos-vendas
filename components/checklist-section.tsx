@@ -1,0 +1,228 @@
+"use client";
+
+import { useState } from "react";
+
+type Item = {
+  id: string;
+  nome: string;
+  status: string;
+  categoria: string;
+  obrigatorio: boolean;
+  motivo_reprovacao: string | null;
+};
+
+type Props = {
+  label: string;
+  tipo: string;
+  items: Item[];
+  processoId: string;
+};
+
+function ChecklistItem({ item }: { item: Item; processoId: string }) {
+  const [status, setStatus] = useState(item.status);
+  const [motivo, setMotivo] = useState(item.motivo_reprovacao ?? "");
+  const [showReprovar, setShowReprovar] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [docLoading, setDocLoading] = useState(false);
+
+  async function verDocumento() {
+    setDocLoading(true);
+    const res = await fetch(`/api/documentos/url?itemId=${item.id}`);
+    if (res.ok) {
+      const { url } = await res.json();
+      window.open(url, "_blank");
+    }
+    setDocLoading(false);
+  }
+
+  async function updateStatus(novoStatus: string, motivoReprovacao?: string) {
+    setLoading(true);
+    const res = await fetch("/api/checklist/status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId: item.id, status: novoStatus, motivo_reprovacao: motivoReprovacao ?? null }),
+    });
+    if (res.ok) {
+      setStatus(novoStatus);
+      setShowReprovar(false);
+    }
+    setLoading(false);
+  }
+
+  const aprovado  = status === "aprovado";
+  const reprovado = status === "reprovado";
+  const enviado   = status === "enviado";
+  const pendente  = status === "pendente";
+
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0">
+
+      {/* Checkbox */}
+      <button
+        disabled={loading || aprovado}
+        onClick={() => {
+          if (pendente) updateStatus("enviado");
+          else if (enviado) updateStatus("pendente");
+        }}
+        className="mt-0.5 shrink-0 disabled:cursor-default"
+        title={pendente ? "Marcar como entregue" : enviado ? "Desmarcar" : undefined}
+      >
+        {aprovado ? (
+          // Aprovado — check verde sólido
+          <svg className="w-4 h-4 text-green-500" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.78 5.78-4.5 4.5a.75.75 0 0 1-1.06 0l-2-2a.75.75 0 1 1 1.06-1.06L6.75 8.69l3.97-3.97a.75.75 0 0 1 1.06 1.06z"/>
+          </svg>
+        ) : reprovado ? (
+          // Reprovado — X vermelho
+          <svg className="w-4 h-4 text-red-400" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22z"/>
+          </svg>
+        ) : enviado ? (
+          // Enviado — check azul outline
+          <svg className="w-4 h-4 text-blue-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="8" cy="8" r="7"/>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8l2 2 4-4"/>
+          </svg>
+        ) : (
+          // Pendente — círculo vazio
+          <svg className="w-4 h-4 text-gray-300 hover:text-gray-400 transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="8" cy="8" r="7"/>
+          </svg>
+        )}
+      </button>
+
+      <div className="flex-1 min-w-0">
+        {/* Nome + status */}
+        <div className="flex items-center justify-between gap-2">
+          <span className={`text-sm ${aprovado ? "line-through text-gray-400" : "text-gray-800"}`}>
+            {item.nome}
+          </span>
+          {enviado && (
+            <span className="text-xs text-blue-500 shrink-0">Entregue</span>
+          )}
+          {reprovado && (
+            <span className="text-xs text-red-500 shrink-0">Reprovado</span>
+          )}
+        </div>
+
+        {/* Motivo reprovação */}
+        {reprovado && motivo && (
+          <p className="text-xs text-red-400 mt-0.5">{motivo}</p>
+        )}
+
+        {/* Ações — aprovação/reprovação quando enviado */}
+        {enviado && !showReprovar && (
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <button
+              onClick={verDocumento}
+              disabled={docLoading}
+              className="text-xs px-3 py-1 bg-gray-50 text-gray-600 border border-gray-200 rounded hover:bg-gray-100 transition-colors disabled:opacity-50"
+            >
+              {docLoading ? "Abrindo..." : "Ver documento ↗"}
+            </button>
+            <button
+              onClick={() => updateStatus("aprovado")}
+              disabled={loading}
+              className="text-xs px-3 py-1 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition-colors disabled:opacity-50"
+            >
+              Aprovar
+            </button>
+            <button
+              onClick={() => setShowReprovar(true)}
+              disabled={loading}
+              className="text-xs px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 transition-colors disabled:opacity-50"
+            >
+              Reprovar
+            </button>
+          </div>
+        )}
+
+        {/* Ver documento quando aprovado */}
+        {aprovado && (
+          <button
+            onClick={verDocumento}
+            disabled={docLoading}
+            className="text-xs text-gray-400 hover:text-gray-600 mt-1"
+          >
+            {docLoading ? "Abrindo..." : "Ver documento ↗"}
+          </button>
+        )}
+
+        {/* Reprovar com motivo */}
+        {reprovado && !showReprovar && (
+          <button
+            onClick={() => { setShowReprovar(true); }}
+            className="text-xs text-gray-400 hover:text-gray-600 mt-1"
+          >
+            Editar motivo
+          </button>
+        )}
+
+        {showReprovar && (
+          <div className="mt-2 space-y-2">
+            <input
+              type="text"
+              placeholder="Motivo da reprovação..."
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateStatus("reprovado", motivo)}
+                disabled={loading || !motivo.trim()}
+                className="text-xs px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setShowReprovar(false)}
+                className="text-xs px-3 py-1 text-gray-400 hover:text-gray-600"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function ChecklistSection({ label, tipo, items, processoId }: Props) {
+  const aprovados = items.filter((i) => i.status === "aprovado").length;
+  const total = items.length;
+  const allDone = total > 0 && aprovados === total;
+
+  const tipoColors: Record<string, string> = {
+    comprador: "bg-blue-50 text-blue-600",
+    vendedor:  "bg-purple-50 text-purple-600",
+    imovel:    "bg-amber-50 text-amber-700",
+    corretor:  "bg-gray-100 text-gray-600",
+  };
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${tipoColors[tipo] ?? tipoColors.corretor}`}>
+            {label.split(" — ")[0]}
+          </span>
+          {label.includes(" — ") && (
+            <span className="text-sm font-medium text-gray-800">{label.split(" — ")[1]}</span>
+          )}
+        </div>
+        <span className={`text-xs font-medium ${allDone ? "text-green-500" : "text-gray-400"}`}>
+          {aprovados}/{total}
+        </span>
+      </div>
+
+      <div className="px-4">
+        {items.map((item) => (
+          <ChecklistItem key={item.id} item={item} processoId={processoId} />
+        ))}
+      </div>
+    </div>
+  );
+}
