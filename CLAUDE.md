@@ -17,21 +17,38 @@ Ferramenta interna para o time de pós-vendas controlar processos, documentaçã
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend + API | Next.js (App Router) + Tailwind CSS |
+| Frontend + API | Next.js 16 (App Router) + Tailwind CSS |
 | Banco + Auth + Storage | Supabase |
 | Automações / Integrações | HubSpot Workflows (webhook nativo) |
-| Deploy | Render |
-| IA (resumo diário) | Claude API (claude-sonnet-4-6) |
+| Deploy | Render (`https://pos-vendas.onrender.com`) |
+| IA (resumo diário) | Claude API (claude-sonnet-4-6) — futuro |
+
+## URLs de Produção
+
+- **App:** `https://pos-vendas.onrender.com`
+- **Webhook HubSpot:** `https://pos-vendas.onrender.com/api/webhook/hubspot`
+- **Portal externo:** `https://pos-vendas.onrender.com/portal?token=<token>`
+- **GitHub:** `https://github.com/mauricioghisserman/sistema-pos-vendas`
+
+## Render — Deploy
+
+- **Build command:** `npm install && npm run build`
+- **Start command:** `npm run start`
+- **Runtime:** Node
+- Deploy automático a cada push na branch `main`
 
 ## Integrações
 
-- **HubSpot:** Pipeline comercial → pipeline jurídico → pipeline pós-vendas. O deal entra no pós-vendas e o workflow do HubSpot dispara um webhook direto na nossa API (sem Zapier). O prazo de documentação vem como campo do deal.
-- **Email:** comunicação com partes (por enquanto sem WhatsApp)
+- **HubSpot:** Workflow dispara webhook para `POST /api/webhook/hubspot` a cada mudança de etapa no pipeline de pós-vendas. O webhook busca os dados completos do deal via API e cria/atualiza o processo no Supabase.
+  - Workflow precisa ter **"Allow re-enrollment"** ativado
+  - O body do webhook deve incluir `{"objectId": "<token do deal>"}` usando o token de propriedade do HubSpot (não digitar manualmente)
+  - Para capturar mudanças sem troca de etapa (owner, prazos, etc.), configurar inscrições nativas no HubSpot: Settings → Private Apps → Webhooks → `deal.propertyChange`
 - **Google OAuth:** autenticação dos analistas via Google Workspace
+- **Supabase Storage:** bucket `documentos` (privado, 20MB por arquivo) para uploads do portal
 
 ## Decisões Tomadas
 
-- Lembretes automáticos: **fora do escopo por enquanto** — analista controla manualmente quando cobrar
+- Lembretes automáticos: **fora do escopo por enquanto** — analista controla manualmente
 - WhatsApp: **fora do escopo por enquanto** — só email
 - Agentes de IA: apenas **resumo diário** por enquanto (classificação/extração de docs é futuro)
 - Checklist tem um template padrão mas o **analista pode customizar por processo**
@@ -39,6 +56,11 @@ Ferramenta interna para o time de pós-vendas controlar processos, documentaçã
 - Corretor acessa o portal em **modo somente leitura**
 - Título do processo é gerado automaticamente mas é editável pelo analista
 - Processo pode ter múltiplos compradores e múltiplos vendedores
+- Upload de documentos no portal aceita PDF, JPG, PNG e WebP (máx. 20MB)
+- Kanban usa paginação por coluna (20 por vez, scroll infinito) — 1.200 deals em produção
+- `hubspot_owner_nome` armazena o nome do responsável pelo deal no HubSpot
+  - ~757 deals antigos têm owner nulo — owners foram deletados do HubSpot, não recuperável
+  - Deals novos puxam o owner automaticamente via webhook
 
 ## Checklist Padrão
 
@@ -61,38 +83,23 @@ Campos com prefixo `pv__` são os de pós-vendas. Os principais:
 ### Partes — E-mails
 | Campo HubSpot | Tipo | Descrição |
 |---|---|---|
-| `pv__e_mails_compradores` | textarea | E-mails compradores (lista) |
-| `pv__e_mails_vendedores` | textarea | E-mails vendedores (lista) |
 | `pv__e_mail_1` … `pv__e_mail_6` | text | E-mails individuais dos vendedores |
 | `pv__e_mail_1___comprador` … `pv__e_mail_6___comprador` | text | E-mails individuais dos compradores |
-| `pv__qtd__de_e_mails___compradores` | select | Quantidade de compradores |
-| `pv__qtd__de_e_mails__todas_partes_envolvidas_` | select | Quantidade de vendedores |
+
+### Responsável
+| Campo HubSpot | Tipo | Descrição |
+|---|---|---|
+| `hubspot_owner_id` | text | ID do owner do deal no HubSpot |
 
 ### Identificação do processo
 | Campo HubSpot | Tipo | Descrição |
 |---|---|---|
-| `id_do_pos_vendas` | number | ID do processo pós-vendas |
-| `etapa_do_pos_vendas` | text | Etapa atual |
-| `pv__pos_vendas_ja_criado` | text | Flag para evitar duplicação no webhook |
-| `pv__ccv_externo_` | select | CCV é externo? |
-| `pv__tera_pos_vendas_` | select | Terá pós-vendas? |
 | `pv__observacoes_pos_vendas` | textarea | Observações |
-
-### Imóvel
-| Campo HubSpot | Tipo | Descrição |
-|---|---|---|
 | `codigo_do_imovel` | text | Código do imóvel |
 | `bairro`, `cidade`, `cep` | text | Endereço |
 
-### Dados do comprador (preenchidos antes)
-| Campo HubSpot | Tipo | Descrição |
-|---|---|---|
-| `fin__nome_do_comprador_principal` | text | Nome comprador principal |
-| `cpf_compradores_separados_por_virgula` | textarea | CPFs compradores |
-| `cpf_do_s__comprador_es_` | text | CPF comprador principal |
-
 ### Observação sobre nomes
-Campos de nome de comprador e vendedor ainda não existem como campos específicos no HubSpot — serão criados. Por enquanto não contar com eles no webhook.
+Campos de nome de comprador e vendedor ainda não existem como campos específicos no HubSpot — serão criados. Por enquanto o nome é derivado do email (parte antes do @).
 
 ## Pipeline Pós-Vendas (HubSpot ID: 117996833)
 
@@ -122,13 +129,58 @@ Schema: `sistema_pos_vendas`
 | `atividades` | Log imutável de tudo que acontece |
 | `checklist_template` | Template padrão usado ao criar novo processo |
 
+### Colunas adicionadas após schema inicial
+- `processos.hubspot_stage_id` — ID da etapa no HubSpot
+- `processos.hubspot_owner_nome` — Nome do responsável pelo deal
+- `processos.endereco_imovel` — Endereço formatado (bairro + cidade)
+- `processos.observacoes` — Observações vindas do HubSpot
+
+## Arquitetura de Arquivos
+
+```
+app/
+  (painel)/
+    layout.tsx              — layout autenticado com sidebar
+    processos/page.tsx      — kanban board (server component, busca owners)
+  api/
+    webhook/hubspot/        — recebe eventos do HubSpot, cria/atualiza processos
+    processos/route.ts      — GET paginado com busca e filtro por owner
+    processos/status/       — PATCH atualiza status no Supabase + HubSpot
+    checklist/status/       — PATCH atualiza status de item do checklist
+    documentos/url/         — GET gera signed URL do Supabase Storage
+    portal/route.ts         — GET dados do portal por token
+    portal/upload/          — POST upload de documento pelo portal
+  portal/page.tsx           — portal externo (público, token-based)
+  login/page.tsx            — login Google OAuth
+components/
+  kanban-board.tsx          — board com busca, filtro e drawer
+  kanban-column.tsx         — coluna com paginação e scroll infinito
+  processo-drawer.tsx       — drawer lateral com checklist + sidebar
+  checklist-section.tsx     — seção do checklist com aprovação/reprovação + ver doc
+  sidebar.tsx               — sidebar preta Pilar
+scripts/
+  sync-hubspot.mjs          — sync completo HubSpot → Supabase (one-shot)
+  backfill-owners.mjs       — backfill de hubspot_owner_nome
+```
+
 ## Status do Projeto
 
 - [x] Mapear campos do deal HubSpot
 - [x] Schema Supabase (`sistema_pos_vendas`)
-- [ ] Inicializar projeto Next.js
-- [ ] Configurar Supabase client no Next.js
-- [ ] Integração HubSpot via webhook nativo (workflow HubSpot → POST na nossa API → criar processo)
-- [ ] Painel do analista
-- [ ] Portal externo
+- [x] Inicializar projeto Next.js
+- [x] Configurar Supabase client no Next.js
+- [x] Autenticação Google OAuth (analistas)
+- [x] Kanban board espelhando pipeline HubSpot
+- [x] Sync bidirecional HubSpot ↔ sistema (webhook + PATCH stage)
+- [x] Drawer com checklist, prazos, partes e observações
+- [x] Paginação por coluna (scroll infinito, 20 por vez)
+- [x] Busca por deal + filtro por responsável
+- [x] Owner do deal puxado do HubSpot e exibido no card
+- [x] Sync total HubSpot → Supabase (script one-shot, 1.202 deals)
+- [x] Portal externo com upload de documentos por token único
+- [x] Supabase Storage (bucket `documentos`)
+- [x] Analista consegue ver documento enviado (signed URL)
+- [x] Deploy no Render (`https://pos-vendas.onrender.com`)
+- [ ] Envio de email com link do portal para as partes
 - [ ] Resumo diário (Claude API)
+- [ ] Inscrições nativas HubSpot para capturar mudanças sem troca de etapa
