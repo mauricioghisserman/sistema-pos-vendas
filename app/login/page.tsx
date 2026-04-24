@@ -55,7 +55,12 @@ function LoginForm() {
 
         <h1 className="text-2xl font-normal text-gray-900 mb-6">Login</h1>
 
-        {error && (
+        {error === "acesso_negado" && (
+          <p className="text-sm text-red-600 mb-4">
+            Seu email não tem acesso ao sistema. Fale com a equipe Pilar.
+          </p>
+        )}
+        {error && error !== "acesso_negado" && (
           <p className="text-sm text-red-600 mb-4">
             Erro ao autenticar. Tente novamente.
           </p>
