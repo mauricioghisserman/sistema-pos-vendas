@@ -7,18 +7,20 @@ type Task = {
   titulo: string;
   concluida: boolean;
   prazo: string | null;
+  prazo_hora: string | null;
   created_at: string;
 };
 
 type Props = { processoId: string };
 
-function prazoInfo(prazo: string | null) {
+function prazoInfo(prazo: string | null, hora: string | null) {
   if (!prazo) return null;
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const data = new Date(prazo + "T00:00:00");
   const diff = Math.ceil((data.getTime() - hoje.getTime()) / 86400000);
   const fmt  = data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-  return { fmt, diff };
+  const horaFmt = hora ? hora.slice(0, 5) : null;
+  return { fmt, diff, horaFmt };
 }
 
 export default function TasksSection({ processoId }: Props) {
@@ -26,13 +28,14 @@ export default function TasksSection({ processoId }: Props) {
   const [loading, setLoading] = useState(true);
   const [texto, setTexto]     = useState("");
   const [prazo, setPrazo]     = useState("");
+  const [hora, setHora]       = useState("09:00");
   const [adding, setAdding]   = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch(`/api/tasks?processoId=${processoId}`)
       .then((r) => r.json())
-      .then((data) => { setTasks(data ?? []); setLoading(false); });
+      .then((data) => { setTasks(Array.isArray(data) ? data : []); setLoading(false); });
   }, [processoId]);
 
   async function addTask() {
@@ -41,13 +44,14 @@ export default function TasksSection({ processoId }: Props) {
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ processoId, titulo: texto, prazo: prazo || null }),
+      body: JSON.stringify({ processoId, titulo: texto, prazo: prazo || null, prazo_hora: prazo ? hora : null }),
     });
     if (res.ok) {
       const nova = await res.json();
       setTasks((prev) => [nova, ...prev]);
       setTexto("");
       setPrazo("");
+      setHora("09:00");
     }
     setAdding(false);
     inputRef.current?.focus();
@@ -85,19 +89,26 @@ export default function TasksSection({ processoId }: Props) {
           onKeyDown={(e) => e.key === "Enter" && addTask()}
           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-400 bg-white"
         />
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-1.5 items-center">
           <input
             type="date"
             value={prazo}
             onChange={(e) => setPrazo(e.target.value)}
             className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-gray-400 bg-white text-gray-600 flex-1"
           />
+          <input
+            type="time"
+            value={hora}
+            onChange={(e) => setHora(e.target.value)}
+            disabled={!prazo}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-gray-400 bg-white text-gray-600 w-20 disabled:opacity-40"
+          />
           <button
             onClick={addTask}
             disabled={adding || !texto.trim()}
-            className="text-xs px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-40"
+            className="text-xs px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-40 shrink-0"
           >
-            {adding ? "..." : "Adicionar"}
+            {adding ? "..." : "+"}
           </button>
         </div>
       </div>
@@ -108,7 +119,7 @@ export default function TasksSection({ processoId }: Props) {
       {abertas.length > 0 && (
         <div className="space-y-1 mb-4">
           {abertas.map((task) => {
-            const p = prazoInfo(task.prazo);
+            const p = prazoInfo(task.prazo, task.prazo_hora);
             return (
               <div key={task.id} className="group flex items-start gap-2.5 py-2 px-2 rounded-lg hover:bg-gray-50 transition-colors">
                 <button
@@ -119,7 +130,9 @@ export default function TasksSection({ processoId }: Props) {
                   <p className="text-sm text-gray-800 leading-snug">{task.titulo}</p>
                   {p && (
                     <span className={`text-xs ${p.diff < 0 ? "text-red-500" : p.diff <= 2 ? "text-amber-500" : "text-gray-400"}`}>
-                      {p.diff < 0 ? `${Math.abs(p.diff)}d atraso` : `até ${p.fmt}`}
+                      {p.diff < 0
+                        ? `${Math.abs(p.diff)}d atraso`
+                        : `até ${p.fmt}${p.horaFmt ? ` às ${p.horaFmt}` : ""}`}
                     </span>
                   )}
                 </div>

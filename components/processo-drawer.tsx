@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ChecklistSection from "@/components/checklist-section";
 import TasksSection from "@/components/tasks-section";
+import ResumoSection from "@/components/resumo-section";
 
 type Parte = { id: string; tipo: string; nome: string; email: string; token_acesso: string };
 type ChecklistItem = { id: string; nome: string; status: string; categoria: string; parte_id: string | null; obrigatorio: boolean; motivo_reprovacao: string | null; ordem: number };
@@ -32,11 +33,14 @@ function PrazoRow({ label, value }: { label: string; value: string | null }) {
   const diff = Math.ceil((data.getTime() - hoje.getTime()) / 86400000);
   const fmt = data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
   return (
-    <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-      <span className="text-xs text-gray-500">{label}</span>
-      <span className={`text-xs font-medium ${diff < 0 ? "text-red-600" : diff <= 5 ? "text-amber-600" : "text-gray-700"}`}>
-        {fmt}{diff < 0 && <span className="ml-1 font-normal text-red-400">({Math.abs(diff)}d atraso)</span>}
-      </span>
+    <div className="py-2 border-b border-gray-100 last:border-0">
+      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+      <p className={`text-xs font-medium ${diff < 0 ? "text-red-600" : diff <= 5 ? "text-amber-600" : "text-gray-700"}`}>
+        {fmt}
+        {diff < 0
+          ? <span className="ml-1 font-normal text-red-400">({Math.abs(diff)}d atraso)</span>
+          : <span className="ml-1 font-normal text-gray-400">({diff}d)</span>}
+      </p>
     </div>
   );
 }
@@ -100,7 +104,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       />
 
       {/* Drawer */}
-      <div className={`fixed top-0 right-0 h-full w-[780px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
+      <div className={`fixed top-0 right-0 h-full w-[900px] max-w-full bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
         {loading || !processo ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
@@ -137,7 +141,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
               </div>
 
               {/* Sidebar */}
-              <aside className="w-60 shrink-0 border-l border-gray-100 overflow-y-auto px-4 py-5 space-y-5">
+              <aside className="w-80 shrink-0 border-l border-gray-100 overflow-y-auto overflow-x-hidden px-4 py-5 space-y-5">
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Prazos</h3>
                   <div className="border border-gray-100 rounded-lg px-3">
@@ -185,6 +189,10 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <ResumoSection processoId={processo.id} />
+                </div>
 
                 <div>
                   <TasksSection processoId={processo.id} />

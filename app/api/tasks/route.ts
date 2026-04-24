@@ -4,12 +4,27 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const processoId = searchParams.get("processoId");
-  if (!processoId) return NextResponse.json({ error: "processoId obrigatório" }, { status: 400 });
+  const all = searchParams.get("all") === "true";
 
   const supabase = createServiceClient();
+
+  if (all) {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("id, titulo, concluida, prazo, prazo_hora, created_at, processo_id, processos(id, titulo)")
+      .eq("concluida", false)
+      .order("prazo", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true });
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
+  }
+
+  if (!processoId) return NextResponse.json({ error: "processoId obrigatório" }, { status: 400 });
+
   const { data, error } = await supabase
     .from("tasks")
-    .select("id, titulo, concluida, prazo, created_at, analista_id")
+    .select("id, titulo, concluida, prazo, prazo_hora, created_at, analista_id")
     .eq("processo_id", processoId)
     .order("concluida")
     .order("created_at", { ascending: false });
@@ -19,7 +34,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { processoId, titulo, prazo, analistaId } = await request.json();
+  const { processoId, titulo, prazo, prazo_hora, analistaId } = await request.json();
   if (!processoId || !titulo?.trim()) {
     return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
   }
@@ -27,8 +42,14 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("tasks")
-    .insert({ processo_id: processoId, titulo: titulo.trim(), prazo: prazo ?? null, analista_id: analistaId ?? null })
-    .select("id, titulo, concluida, prazo, created_at")
+    .insert({
+      processo_id: processoId,
+      titulo: titulo.trim(),
+      prazo: prazo ?? null,
+      prazo_hora: prazo ? (prazo_hora ?? "09:00") : null,
+      analista_id: analistaId ?? null,
+    })
+    .select("id, titulo, concluida, prazo, prazo_hora, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
