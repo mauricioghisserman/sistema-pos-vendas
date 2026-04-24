@@ -53,11 +53,21 @@ function ProcessoCard({ processo }: { processo: Processo }) {
             <span className="text-xs text-gray-500 truncate max-w-[100px]">{ownerNome}</span>
           </div>
         ) : <div />}
-        {initials && (
-          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600 shrink-0">
-            {initials}
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {processo.open_tasks_count > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {processo.open_tasks_count}
+            </span>
+          )}
+          {initials && (
+            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">
+              {initials}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ChecklistSection from "@/components/checklist-section";
+import TasksSection from "@/components/tasks-section";
 
 type Parte = { id: string; tipo: string; nome: string; email: string; token_acesso: string };
 type ChecklistItem = { id: string; nome: string; status: string; categoria: string; parte_id: string | null; obrigatorio: boolean; motivo_reprovacao: string | null; ordem: number };
@@ -184,6 +185,10 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <TasksSection processoId={processo.id} />
+                </div>
               </aside>
             </div>
           </>

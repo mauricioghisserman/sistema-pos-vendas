@@ -22,6 +22,7 @@ export type Processo = {
   hubspot_deal_id: string;
   hubspot_owner_nome: string | null;
   analistas: { nome: string; email: string } | null;
+  open_tasks_count: number;
 };
 
 export default async function ProcessosPage() {
