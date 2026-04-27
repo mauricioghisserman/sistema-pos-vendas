@@ -26,21 +26,137 @@ const STATUS_LABEL: Record<string, string> = {
   perdido: "Perdido",
 };
 
-function PrazoRow({ label, value }: { label: string; value: string | null }) {
-  if (!value) return null;
+function PrazoRow({ label, value, campo, processoId, onUpdate }: {
+  label: string;
+  value: string | null;
+  campo: string;
+  processoId: string;
+  onUpdate: (campo: string, valor: string) => void;
+}) {
+  const [editing, setEditing]   = useState(false);
+  const [modo, setModo]         = useState<"data" | "dias">("data");
+  const [inputData, setInputData] = useState(value ?? "");
+  const [inputDias, setInputDias] = useState("");
+  const [saving, setSaving]     = useState(false);
+
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const data = new Date(value + "T00:00:00");
-  const diff = Math.ceil((data.getTime() - hoje.getTime()) / 86400000);
-  const fmt = data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  // Data calculada no modo "dias"
+  const dataCalculada = (() => {
+    const n = parseInt(inputDias);
+    if (!inputDias || isNaN(n) || n < 0) return null;
+    const d = new Date(hoje); d.setDate(d.getDate() + n);
+    return d.toISOString().split("T")[0];
+  })();
+
+  function openEdit() {
+    setInputData(value ?? "");
+    setInputDias("");
+    setModo("data");
+    setEditing(true);
+  }
+
+  function cancel() { setEditing(false); }
+
+  async function save() {
+    const novaData = modo === "data" ? inputData : dataCalculada;
+    if (!novaData) return;
+    setSaving(true);
+    await fetch("/api/processos/prazos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ processoId, campo, valor: novaData }),
+    });
+    onUpdate(campo, novaData);
+    setSaving(false);
+    setEditing(false);
+  }
+
+  // Exibição do valor atual
+  const displayDiff = value ? Math.ceil((new Date(value + "T00:00:00").getTime() - hoje.getTime()) / 86400000) : null;
+  const displayFmt  = value ? new Date(value + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) : null;
+
+  if (editing) {
+    const novaDataPreview = modo === "dias" && dataCalculada
+      ? new Date(dataCalculada + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+      : null;
+
+    return (
+      <div className="py-2.5 border-b border-gray-100 last:border-0">
+        <p className="text-xs text-gray-400 mb-2">{label}</p>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-2">
+          {(["data", "dias"] as const).map((m) => (
+            <button key={m} onClick={() => setModo(m)}
+              className={`text-xs px-2 py-0.5 rounded transition-colors ${modo === m ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"}`}>
+              {m === "data" ? "Data" : "Dias"}
+            </button>
+          ))}
+        </div>
+
+        {modo === "data" ? (
+          <input
+            type="date"
+            value={inputData}
+            onChange={(e) => { setInputData(e.target.value); if (e.target.value) { const v = e.target.value; setTimeout(() => { setSaving(true); fetch("/api/processos/prazos", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ processoId, campo, valor: v }) }).then(() => { onUpdate(campo, v); setSaving(false); setEditing(false); }); }, 0); } }}
+            onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}
+            autoFocus
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+          />
+        ) : (
+          <div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                placeholder="ex: 30"
+                value={inputDias}
+                onChange={(e) => setInputDias(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+                onBlur={() => { if (dataCalculada) save(); }}
+                autoFocus
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+              />
+              <span className="text-xs text-gray-400 shrink-0">dias</span>
+            </div>
+            {novaDataPreview && (
+              <p className="text-xs text-gray-400 mt-1">→ {novaDataPreview}</p>
+            )}
+            {saving && <p className="text-xs text-gray-400 mt-1">Salvando...</p>}
+          </div>
+        )}
+
+        <button onClick={cancel} className="text-xs mt-2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+          Cancelar
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="py-2 border-b border-gray-100 last:border-0">
+    <div className="group py-2 border-b border-gray-100 last:border-0">
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className={`text-xs font-medium ${diff < 0 ? "text-red-600" : diff <= 5 ? "text-amber-600" : "text-gray-700"}`}>
-        {fmt}
-        {diff < 0
-          ? <span className="ml-1 font-normal text-red-400">({Math.abs(diff)}d atraso)</span>
-          : <span className="ml-1 font-normal text-gray-400">({diff}d)</span>}
-      </p>
+      <div className="flex items-center gap-1.5">
+        {displayFmt ? (
+          <p className={`text-xs font-medium ${displayDiff! < 0 ? "text-red-600" : displayDiff! <= 5 ? "text-amber-600" : "text-gray-700"}`}>
+            {displayFmt}
+            {displayDiff! < 0
+              ? <span className="ml-1 font-normal text-red-400">({Math.abs(displayDiff!)}d atraso)</span>
+              : <span className="ml-1 font-normal text-gray-400">({displayDiff}d)</span>}
+          </p>
+        ) : (
+          <p className="text-xs text-gray-400">—</p>
+        )}
+        <button
+          onClick={openEdit}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 cursor-pointer"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }
@@ -145,10 +261,10 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Prazos</h3>
                   <div className="border border-gray-100 rounded-lg px-3">
-                    <PrazoRow label="Entrega de docs" value={processo.prazo_entrega_doc} />
-                    <PrazoRow label="Assinatura" value={processo.prazo_assinatura} />
-                    <PrazoRow label="Instrumento" value={processo.prazo_instrumento} />
-                    <PrazoRow label="Registro" value={processo.prazo_registro} />
+                    <PrazoRow label="Entrega de docs" value={processo.prazo_entrega_doc} campo="prazo_entrega_doc" processoId={processo.id} onUpdate={(c, v) => setProcesso((p) => p ? { ...p, [c]: v } : p)} />
+                    <PrazoRow label="Assinatura" value={processo.prazo_assinatura} campo="prazo_assinatura" processoId={processo.id} onUpdate={(c, v) => setProcesso((p) => p ? { ...p, [c]: v } : p)} />
+                    <PrazoRow label="Instrumento" value={processo.prazo_instrumento} campo="prazo_instrumento" processoId={processo.id} onUpdate={(c, v) => setProcesso((p) => p ? { ...p, [c]: v } : p)} />
+                    <PrazoRow label="Registro" value={processo.prazo_registro} campo="prazo_registro" processoId={processo.id} onUpdate={(c, v) => setProcesso((p) => p ? { ...p, [c]: v } : p)} />
                     {!processo.prazo_entrega_doc && !processo.prazo_instrumento && !processo.prazo_assinatura && !processo.prazo_registro && (
                       <p className="text-xs text-gray-400 py-2">Nenhum prazo.</p>
                     )}

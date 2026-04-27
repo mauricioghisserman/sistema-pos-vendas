@@ -35,12 +35,12 @@ function ProcessoCard({ processo }: { processo: Processo }) {
       <div className="space-y-0.5 mb-3">
         {prazoDoc && (
           <p className={`text-xs ${prazoDoc.diff < 0 ? "text-red-500" : prazoDoc.diff <= 5 ? "text-amber-500" : "text-gray-400"}`}>
-            [pv] prazo entrega doc: {prazoDoc.fmt} ({prazoDoc.diff >= 0 ? prazoDoc.diff : Math.abs(prazoDoc.diff)}{prazoDoc.diff < 0 ? " d. atraso" : " d."})
+            Prazo documentação: {prazoDoc.fmt} ({prazoDoc.diff >= 0 ? prazoDoc.diff : Math.abs(prazoDoc.diff)}{prazoDoc.diff < 0 ? " d. atraso" : " d."})
           </p>
         )}
         {prazoInstr && (
           <p className={`text-xs ${prazoInstr.diff < 0 ? "text-red-500" : prazoInstr.diff <= 5 ? "text-amber-500" : "text-gray-400"}`}>
-            [pv] Prazo Instrumento: {prazoInstr.fmt} ({prazoInstr.diff >= 0 ? prazoInstr.diff : Math.abs(prazoInstr.diff)}{prazoInstr.diff < 0 ? " d. atraso" : " d."})
+            Prazo instrumento: {prazoInstr.fmt} ({prazoInstr.diff >= 0 ? prazoInstr.diff : Math.abs(prazoInstr.diff)}{prazoInstr.diff < 0 ? " d. atraso" : " d."})
           </p>
         )}
       </div>

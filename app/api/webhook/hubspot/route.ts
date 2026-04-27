@@ -12,12 +12,8 @@ const STAGE_MAP: Record<string, string> = {
 };
 
 
-export async function POST(request: Request) {
-  const body = await request.json();
+async function processEventos(eventos: Record<string, unknown>[]) {
   const supabase = createServiceClient();
-
-  // HubSpot envia array ou objeto único dependendo do tipo de webhook
-  const eventos = Array.isArray(body) ? body : [body];
 
   for (const evento of eventos) {
     const dealId = String(evento.objectId ?? evento.dealId ?? evento.hs_object_id ?? "");
@@ -156,6 +152,15 @@ export async function POST(request: Request) {
         .eq("id", processoId);
     }
   }
+
+}
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  const eventos = Array.isArray(body) ? body : [body];
+
+  // Retorna 200 imediatamente — processa em background para não dar timeout no HubSpot
+  processEventos(eventos).catch(console.error);
 
   return NextResponse.json({ ok: true });
 }

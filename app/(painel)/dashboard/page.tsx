@@ -110,70 +110,61 @@ function TasksPanel({ tasks, onToggle }: {
 
 // ── Seção de Prazos dos Processos ────────────────────────────────────────────
 
-function PrazosPanel({ processos, onOpenProcesso }: {
-  processos: ProcessoPrazo[];
+type PrazoItem = { processo: ProcessoPrazo; dateStr: string; diff: number };
+
+function PrazoGroup({ titulo, items, onOpenProcesso }: {
+  titulo: string;
+  items: PrazoItem[];
   onOpenProcesso: (id: string) => void;
 }) {
-  if (processos.length === 0) {
-    return <p className="text-sm text-gray-400 text-center py-8">Nenhum prazo crítico nos próximos 14 dias.</p>;
-  }
-
-  // Para cada processo, pega o prazo mais urgente
-  type PrazoItem = { processo: ProcessoPrazo; label: string; dateStr: string; diff: number };
-  const items: PrazoItem[] = [];
-
-  for (const p of processos) {
-    const candidates = [
-      { label: "Entrega de docs", dateStr: p.prazo_entrega_doc },
-      { label: "Instrumento",     dateStr: p.prazo_instrumento },
-    ].filter((c) => c.dateStr) as { label: string; dateStr: string }[];
-
-    for (const c of candidates) {
-      const diff = daysDiff(c.dateStr);
-      if (diff <= 14) items.push({ processo: p, label: c.label, dateStr: c.dateStr, diff });
-    }
-  }
-
-  items.sort((a, b) => a.diff - b.diff);
-
-  const atrasados = items.filter((i) => i.diff < 0);
-  const proximos  = items.filter((i) => i.diff >= 0);
-
-  const renderGroup = (label: string, color: string, list: PrazoItem[]) => {
-    if (!list.length) return null;
+  if (items.length === 0) {
     return (
-      <div className="mb-5">
-        <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${color}`}>
-          {label} · {list.length}
-        </p>
-        <div className="space-y-1">
-          {list.map((item, i) => (
-            <button
-              key={`${item.processo.id}-${item.label}-${i}`}
-              onClick={() => onOpenProcesso(item.processo.id)}
-              className="w-full flex items-start gap-3 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-800 leading-snug truncate">{item.processo.titulo}</p>
-                <p className="text-xs text-gray-400">{item.label}</p>
-              </div>
-              <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded shrink-0 ${diffColor(item.diff)}`}>
-                {fmtDate(item.dateStr)} · {diffLabel(item.diff)}
-              </span>
-            </button>
-          ))}
-        </div>
+      <div className="mb-6">
+        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">{titulo}</p>
+        <p className="text-xs text-gray-400 px-1">Nenhum prazo crítico.</p>
       </div>
     );
-  };
+  }
+
+  const sorted    = [...items].sort((a, b) => a.diff - b.diff);
+  const atrasados = sorted.filter((i) => i.diff < 0);
+  const proximos  = sorted.filter((i) => i.diff >= 0);
+
+  const renderRows = (list: PrazoItem[]) =>
+    list.map((item) => (
+      <button
+        key={item.processo.id}
+        onClick={() => onOpenProcesso(item.processo.id)}
+        className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors text-left cursor-pointer"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-800 leading-snug truncate">{item.processo.titulo}</p>
+        </div>
+        <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded shrink-0 ${diffColor(item.diff)}`}>
+          {fmtDate(item.dateStr)} · {diffLabel(item.diff)}
+        </span>
+      </button>
+    ));
 
   return (
-    <div>
-      {renderGroup("Atrasados", "text-red-600", atrasados)}
-      {renderGroup("Próximos 14 dias", "text-gray-600", proximos)}
+    <div className="mb-6">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+        {titulo} · {items.length}
+      </p>
+      <div className="space-y-1">
+        {atrasados.length > 0 && (
+          <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wide px-1 pt-1">Atrasados</p>
+        )}
+        {renderRows(atrasados)}
+        {proximos.length > 0 && atrasados.length > 0 && (
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1 pt-2">Próximos</p>
+        )}
+        {renderRows(proximos)}
+      </div>
     </div>
   );
 }
+
 
 // ── Página ───────────────────────────────────────────────────────────────────
 
@@ -234,13 +225,35 @@ export default function DashboardPage() {
             {/* Divisor */}
             <div className="w-px bg-gray-100 shrink-0" />
 
-            {/* Prazos dos processos */}
+            {/* Entrega de documentação */}
             <div className="flex-1 overflow-y-auto min-w-0">
-              <div className="flex items-baseline gap-2 mb-4">
-                <h2 className="text-sm font-semibold text-gray-700">Prazos dos processos</h2>
-                <span className="text-xs text-gray-400">{processos.length} processo{processos.length !== 1 ? "s" : ""}</span>
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-gray-700">Entrega de documentação</h2>
               </div>
-              <PrazosPanel processos={processos} onOpenProcesso={setSelectedId} />
+              <PrazoGroup
+                titulo=""
+                items={processos
+                  .filter((p) => p.prazo_entrega_doc && daysDiff(p.prazo_entrega_doc) <= 14)
+                  .map((p) => ({ processo: p, dateStr: p.prazo_entrega_doc!, diff: daysDiff(p.prazo_entrega_doc!) }))}
+                onOpenProcesso={setSelectedId}
+              />
+            </div>
+
+            {/* Divisor */}
+            <div className="w-px bg-gray-100 shrink-0" />
+
+            {/* Instrumento */}
+            <div className="flex-1 overflow-y-auto min-w-0">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-gray-700">Instrumento</h2>
+              </div>
+              <PrazoGroup
+                titulo=""
+                items={processos
+                  .filter((p) => p.prazo_instrumento && daysDiff(p.prazo_instrumento) <= 14)
+                  .map((p) => ({ processo: p, dateStr: p.prazo_instrumento!, diff: daysDiff(p.prazo_instrumento!) }))}
+                onOpenProcesso={setSelectedId}
+              />
             </div>
           </div>
         )}
