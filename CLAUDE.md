@@ -59,6 +59,10 @@ Ferramenta interna para o time de pós-vendas controlar processos, documentaçã
 - Upload de documentos no portal aceita PDF, JPG, PNG e WebP (máx. 20MB)
 - Kanban usa paginação por coluna (20 por vez, scroll infinito) — 1.200 deals em produção
 - `hubspot_owner_nome` armazena o nome do responsável pelo deal no HubSpot
+- Webhook HubSpot deve retornar 200 imediatamente e processar em background — chamadas síncronas causam timeout e o HubSpot marca como erro
+- URL do webhook no HubSpot Private App: `https://pos-vendas.onrender.com/api/webhook/hubspot` (não `vendas.onrender.com`)
+- Resumo IA usa Gemini 2.0 Flash (`gemini-2.0-flash`) via `GEMINI_API_KEY` — tem retry automático em 429
+- Prazos HubSpot exigem timestamp em ms (meia-noite UTC): `new Date(valor + "T00:00:00.000Z").getTime()`
   - ~757 deals antigos têm owner nulo — owners foram deletados do HubSpot, não recuperável
   - Deals novos puxam o owner automaticamente via webhook
 
@@ -143,20 +147,29 @@ app/
     layout.tsx              — layout autenticado com sidebar
     processos/page.tsx      — kanban board (server component, busca owners)
   api/
-    webhook/hubspot/        — recebe eventos do HubSpot, cria/atualiza processos
+    webhook/hubspot/        — recebe eventos do HubSpot, cria/atualiza processos (retorna 200 imediato, processa em background)
     processos/route.ts      — GET paginado com busca e filtro por owner
     processos/status/       — PATCH atualiza status no Supabase + HubSpot
+    processos/prazos/       — PATCH atualiza prazo no Supabase + HubSpot (timestamp ms)
     checklist/status/       — PATCH atualiza status de item do checklist
+    checklist/items/        — POST cria novo item adicional no checklist
     documentos/url/         — GET gera signed URL do Supabase Storage
     portal/route.ts         — GET dados do portal por token
     portal/upload/          — POST upload de documento pelo portal
+    tasks/route.ts          — GET/POST tasks por processo; ?all=true retorna todas abertas
+    resumo/route.ts         — GET resumo IA (Gemini) com contexto completo do processo
+    dashboard/route.ts      — GET processos com prazo vencendo nos próximos 14 dias
   portal/page.tsx           — portal externo (público, token-based)
   login/page.tsx            — login Google OAuth
+  dashboard/page.tsx        — dashboard com 3 colunas: Tasks | Documentação | Instrumento
+  tasks/page.tsx            — painel de tasks agrupadas por prazo
 components/
   kanban-board.tsx          — board com busca, filtro e drawer
   kanban-column.tsx         — coluna com paginação e scroll infinito
-  processo-drawer.tsx       — drawer lateral com checklist + sidebar
-  checklist-section.tsx     — seção do checklist com aprovação/reprovação + ver doc
+  processo-drawer.tsx       — drawer lateral com checklist + sidebar (w-[900px])
+  checklist-section.tsx     — seção do checklist com aprovação/reprovação + adicionar doc
+  tasks-section.tsx         — seção de tasks no drawer (com prazo_hora, padrão 09:00)
+  resumo-section.tsx        — botão "Gerar" resumo IA no drawer
   sidebar.tsx               — sidebar preta Pilar
 scripts/
   sync-hubspot.mjs          — sync completo HubSpot → Supabase (one-shot)
@@ -176,11 +189,19 @@ scripts/
 - [x] Paginação por coluna (scroll infinito, 20 por vez)
 - [x] Busca por deal + filtro por responsável
 - [x] Owner do deal puxado do HubSpot e exibido no card
-- [x] Sync total HubSpot → Supabase (script one-shot, 1.202 deals)
+- [x] Sync total HubSpot → Supabase (script one-shot, 1.228 deals)
 - [x] Portal externo com upload de documentos por token único
 - [x] Supabase Storage (bucket `documentos`)
 - [x] Analista consegue ver documento enviado (signed URL)
 - [x] Deploy no Render (`https://pos-vendas.onrender.com`)
+- [x] Tasks por processo (com prazo + hora, padrão 09:00)
+- [x] Painel de tasks agrupado por prazo
+- [x] Dashboard com Tasks | Documentação | Instrumento lado a lado
+- [x] Edição inline de prazos no drawer com sync para HubSpot
+- [x] Resumo IA por processo (Gemini 2.0 Flash) com contexto completo
+- [x] Webhook HubSpot: retorna 200 imediato, processa em background (fix timeout)
+- [x] Botão "Copiar link do portal" por parte no drawer
+- [x] Analista pode adicionar documentos adicionais no checklist
 - [ ] Envio de email com link do portal para as partes
 - [ ] Resumo diário (Claude API)
-- [ ] Inscrições nativas HubSpot para capturar mudanças sem troca de etapa
+- [ ] Inscrições nativas HubSpot para outras propriedades (owner, prazos)
