@@ -16,6 +16,7 @@ type Props = {
   tipo: string;
   items: Item[];
   processoId: string;
+  parteId: string | null;
 };
 
 function ChecklistItem({ item }: { item: Item; processoId: string }) {
@@ -190,10 +191,32 @@ function ChecklistItem({ item }: { item: Item; processoId: string }) {
   );
 }
 
-export default function ChecklistSection({ label, tipo, items, processoId }: Props) {
+export default function ChecklistSection({ label, tipo, items: initialItems, processoId, parteId }: Props) {
+  const [items, setItems]         = useState(initialItems);
+  const [adicionando, setAdicionando] = useState(false);
+  const [novoNome, setNovoNome]   = useState("");
+  const [salvando, setSalvando]   = useState(false);
+
   const aprovados = items.filter((i) => i.status === "aprovado").length;
   const total = items.length;
   const allDone = total > 0 && aprovados === total;
+
+  async function adicionarItem() {
+    if (!novoNome.trim()) return;
+    setSalvando(true);
+    const res = await fetch("/api/checklist/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ processoId, parteId, categoria: tipo, nome: novoNome }),
+    });
+    if (res.ok) {
+      const novo = await res.json();
+      setItems((prev) => [...prev, novo]);
+      setNovoNome("");
+      setAdicionando(false);
+    }
+    setSalvando(false);
+  }
 
   const tipoColors: Record<string, string> = {
     comprador: "bg-blue-50 text-blue-600",
@@ -222,6 +245,45 @@ export default function ChecklistSection({ label, tipo, items, processoId }: Pro
         {items.map((item) => (
           <ChecklistItem key={item.id} item={item} processoId={processoId} />
         ))}
+
+        {adicionando ? (
+          <div className="py-3 border-t border-gray-100 space-y-2">
+            <input
+              type="text"
+              placeholder="Nome do documento..."
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") adicionarItem(); if (e.key === "Escape") { setAdicionando(false); setNovoNome(""); } }}
+              autoFocus
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={adicionarItem}
+                disabled={salvando || !novoNome.trim()}
+                className="text-xs px-3 py-1 bg-gray-900 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {salvando ? "Salvando..." : "Adicionar"}
+              </button>
+              <button
+                onClick={() => { setAdicionando(false); setNovoNome(""); }}
+                className="text-xs px-3 py-1 text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setAdicionando(true)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors py-2.5 cursor-pointer w-full"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Adicionar documento
+          </button>
+        )}
       </div>
     </div>
   );

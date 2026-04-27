@@ -130,6 +130,7 @@ export default async function ProcessoPage({ params }: { params: Promise<{ id: s
               tipo={grupo.tipo}
               items={grupo.items ?? []}
               processoId={id}
+              parteId={grupo.parteId ?? null}
             />
           ))}
           {grupos.length === 0 && (

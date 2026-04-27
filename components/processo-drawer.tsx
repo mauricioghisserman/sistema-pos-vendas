@@ -161,6 +161,49 @@ function PrazoRow({ label, value, campo, processoId, onUpdate }: {
   );
 }
 
+function ParteCard({ parte }: { parte: Parte }) {
+  const [copiado, setCopiado] = useState(false);
+
+  function copiarLink() {
+    const url = `${window.location.origin}/portal?token=${parte.token_acesso}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    });
+  }
+
+  return (
+    <div className="border border-gray-100 rounded-lg px-3 py-2.5">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-xs font-medium text-gray-500 capitalize">{parte.tipo}</span>
+        <button
+          onClick={copiarLink}
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+          title="Copiar link do portal"
+        >
+          {copiado ? (
+            <>
+              <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-green-500">Copiado!</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <span>Copiar link</span>
+            </>
+          )}
+        </button>
+      </div>
+      <p className="text-sm text-gray-900">{parte.nome}</p>
+      <p className="text-xs text-gray-400 truncate">{parte.email}</p>
+    </div>
+  );
+}
+
 type Props = { processoId: string | null; onClose: () => void };
 
 export default function ProcessoDrawer({ processoId, onClose }: Props) {
@@ -251,7 +294,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
               {/* Checklist */}
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
                 {grupos.map((grupo) => (
-                  <ChecklistSection key={grupo.parteId ?? "imovel"} label={grupo.label} tipo={grupo.tipo} items={grupo.items} processoId={processo.id} />
+                  <ChecklistSection key={grupo.parteId ?? "imovel"} label={grupo.label} tipo={grupo.tipo} items={grupo.items} processoId={processo.id} parteId={grupo.parteId} />
                 ))}
                 {grupos.length === 0 && <p className="text-sm text-gray-400 text-center py-16">Nenhum item no checklist.</p>}
               </div>
@@ -275,14 +318,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Partes</h3>
                   <div className="space-y-2">
                     {partes.map((parte) => (
-                      <div key={parte.id} className="border border-gray-100 rounded-lg px-3 py-2.5">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-xs font-medium text-gray-500 capitalize">{parte.tipo}</span>
-                          <a href={`/portal?token=${parte.token_acesso}`} target="_blank" className="text-xs text-blue-500 hover:text-blue-700">Portal ↗</a>
-                        </div>
-                        <p className="text-sm text-gray-900">{parte.nome}</p>
-                        <p className="text-xs text-gray-400 truncate">{parte.email}</p>
-                      </div>
+                      <ParteCard key={parte.id} parte={parte} />
                     ))}
                   </div>
                 </div>
