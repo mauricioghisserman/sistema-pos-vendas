@@ -78,6 +78,7 @@ type Props = {
   search: string;
   owner: string;
   version: number;
+  silentVersion: number;
   isFirst: boolean;
   draggingId: string | null;
   isOver: boolean;
@@ -89,7 +90,7 @@ type Props = {
 };
 
 export default function KanbanColumn({
-  stage, search, owner, version, isFirst,
+  stage, search, owner, version, silentVersion, isFirst,
   draggingId, isOver, onSelect, onDragStart, onDragOver, onDragLeave, onDrop,
 }: Props) {
   const [items, setItems]     = useState<Processo[]>([]);
@@ -118,6 +119,20 @@ export default function KanbanColumn({
     setLoading(false);
   }, [stage.key, search, owner]);
 
+  // Refresh silencioso (realtime): busca em background sem limpar items
+  const fetchSilent = useCallback(async () => {
+    const params = new URLSearchParams({ status: stage.key, page: "0" });
+    if (search) params.set("search", search);
+    if (owner)  params.set("owner", owner);
+
+    const res  = await fetch(`/api/processos?${params}`);
+    const json = await res.json();
+
+    setItems(json.data);
+    setHasMore(json.hasMore);
+    setPage(0);
+  }, [stage.key, search, owner]);
+
   // Reset + re-fetch on search/owner/version change
   useEffect(() => {
     setItems([]);
@@ -126,6 +141,13 @@ export default function KanbanColumn({
     fetchPage(0, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage.key, search, owner, version]);
+
+  // Refresh silencioso ao receber evento do Realtime
+  useEffect(() => {
+    if (silentVersion === 0) return;
+    fetchSilent();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [silentVersion]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;

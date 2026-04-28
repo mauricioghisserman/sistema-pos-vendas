@@ -21,6 +21,7 @@ export default function KanbanBoard({ stages, owners }: Props) {
   const [draggingId, setDraggingId]       = useState<string | null>(null);
   const [overStage, setOverStage]         = useState<string | null>(null);
   const [versions, setVersions]           = useState<Record<string, number>>({});
+  const [silentVersions, setSilentVersions] = useState<Record<string, number>>({});
 
   // Debounce busca 300 ms
   useEffect(() => {
@@ -28,13 +29,13 @@ export default function KanbanBoard({ stages, owners }: Props) {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Realtime: re-fetch todas as colunas quando processos mudar no Supabase
+  // Realtime: refresh silencioso quando processos mudar no Supabase
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel("processos-realtime")
       .on("postgres_changes", { event: "*", schema: "sistema_pos_vendas", table: "processos" }, () => {
-        setVersions((v) => {
+        setSilentVersions((v) => {
           const next = { ...v };
           stages.forEach((s) => { next[s.key] = (next[s.key] ?? 0) + 1; });
           return next;
@@ -115,6 +116,7 @@ export default function KanbanBoard({ stages, owners }: Props) {
               search={debouncedSearch}
               owner={selectedOwner}
               version={versions[stage.key] ?? 0}
+              silentVersion={silentVersions[stage.key] ?? 0}
               isFirst={i === 0}
               draggingId={draggingId}
               isOver={overStage === stage.key}
