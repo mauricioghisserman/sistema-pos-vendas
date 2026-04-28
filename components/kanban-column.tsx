@@ -15,9 +15,12 @@ function prazoLabel(prazo: string | null) {
   return { fmt, diff };
 }
 
+const MOSTRAR_PRAZO_DOC   = new Set(["fechado_pelo_comercial", "pos_vendas_iniciado", "documentacao_pendente"]);
+const MOSTRAR_PRAZO_INSTR = new Set(["fechado_pelo_comercial", "pos_vendas_iniciado", "documentacao_pendente", "instrumento_definitivo"]);
+
 function ProcessoCard({ processo }: { processo: Processo }) {
-  const prazoDoc  = prazoLabel(processo.prazo_entrega_doc);
-  const prazoInstr = prazoLabel(processo.prazo_instrumento);
+  const prazoDoc  = MOSTRAR_PRAZO_DOC.has(processo.status)   ? prazoLabel(processo.prazo_entrega_doc) : null;
+  const prazoInstr = MOSTRAR_PRAZO_INSTR.has(processo.status) ? prazoLabel(processo.prazo_instrumento) : null;
   const analista  = processo.analistas;
   const initials  = analista?.nome
     ? analista.nome.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase()
