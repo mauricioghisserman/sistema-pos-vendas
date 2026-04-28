@@ -6,6 +6,7 @@ import type { STAGES } from "@/app/(painel)/processos/page";
 import type { Processo } from "@/app/(painel)/processos/page";
 import KanbanColumn from "@/components/kanban-column";
 import ProcessoDrawer from "@/components/processo-drawer";
+import { createClient } from "@/lib/supabase/client";
 
 type Props = {
   stages: typeof STAGES;
@@ -26,6 +27,23 @@ export default function KanbanBoard({ stages, owners }: Props) {
     const t = setTimeout(() => setDebounced(search), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Realtime: re-fetch todas as colunas quando processos mudar no Supabase
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("processos-realtime")
+      .on("postgres_changes", { event: "*", schema: "sistema_pos_vendas", table: "processos" }, () => {
+        setVersions((v) => {
+          const next = { ...v };
+          stages.forEach((s) => { next[s.key] = (next[s.key] ?? 0) + 1; });
+          return next;
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [stages]);
 
   async function moveCard(processoId: string, novoStatus: Stage) {
     const prev = draggingId ? stages.find((s) => {
