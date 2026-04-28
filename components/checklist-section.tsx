@@ -25,13 +25,15 @@ function ChecklistItem({ item }: { item: Item; processoId: string }) {
   const [showReprovar, setShowReprovar] = useState(false);
   const [loading, setLoading] = useState(false);
   const [docLoading, setDocLoading] = useState(false);
+  const [geminiAnalise, setGeminiAnalise] = useState<string | null>(null);
 
   async function verDocumento() {
     setDocLoading(true);
     const res = await fetch(`/api/documentos/url?itemId=${item.id}`);
     if (res.ok) {
-      const { url } = await res.json();
-      window.open(url, "_blank");
+      const data = await res.json();
+      window.open(data.url, "_blank");
+      if (data.gemini_analise) setGeminiAnalise(data.gemini_analise);
     }
     setDocLoading(false);
   }
@@ -147,6 +149,14 @@ function ChecklistItem({ item }: { item: Item; processoId: string }) {
           >
             {docLoading ? "Abrindo..." : "Ver documento ↗"}
           </button>
+        )}
+
+        {/* Análise Gemini — visível só para o analista */}
+        {geminiAnalise && (
+          <div className="mt-2 flex items-start gap-1.5 bg-gray-50 rounded px-2 py-1.5">
+            <span className="text-gray-400 text-xs shrink-0">🤖</span>
+            <p className="text-xs text-gray-500 leading-relaxed">{geminiAnalise}</p>
+          </div>
         )}
 
         {/* Reprovar com motivo */}

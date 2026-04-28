@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   // Busca o documento mais recente deste item
   const { data: doc } = await supabase
     .from("documentos")
-    .select("storage_path, nome_arquivo")
+    .select("storage_path, nome_arquivo, gemini_analise")
     .eq("checklist_item_id", itemId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -27,5 +27,5 @@ export async function GET(request: Request) {
 
   if (error || !signed) return NextResponse.json({ error: "Erro ao gerar link" }, { status: 500 });
 
-  return NextResponse.json({ url: signed.signedUrl, nome_arquivo: doc.nome_arquivo });
+  return NextResponse.json({ url: signed.signedUrl, nome_arquivo: doc.nome_arquivo, gemini_analise: doc.gemini_analise ?? null });
 }
