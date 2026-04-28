@@ -80,6 +80,7 @@ type Props = {
   stage: { key: string; label: string };
   search: string;
   owner: string;
+  sort: string;
   version: number;
   silentVersion: number;
   isFirst: boolean;
@@ -93,7 +94,7 @@ type Props = {
 };
 
 export default function KanbanColumn({
-  stage, search, owner, version, silentVersion, isFirst,
+  stage, search, owner, sort, version, silentVersion, isFirst,
   draggingId, isOver, onSelect, onDragStart, onDragOver, onDragLeave, onDrop,
 }: Props) {
   const [items, setItems]     = useState<Processo[]>([]);
@@ -111,6 +112,7 @@ export default function KanbanColumn({
     const params = new URLSearchParams({ status: stage.key, page: String(pageNum) });
     if (search) params.set("search", search);
     if (owner)  params.set("owner", owner);
+    if (sort)   params.set("sort", sort);
 
     const res  = await fetch(`/api/processos?${params}`);
     const json = await res.json();
@@ -120,13 +122,14 @@ export default function KanbanColumn({
     setPage(pageNum);
     loadingRef.current = false;
     setLoading(false);
-  }, [stage.key, search, owner]);
+  }, [stage.key, search, owner, sort]);
 
   // Refresh silencioso (realtime): busca em background sem limpar items
   const fetchSilent = useCallback(async () => {
     const params = new URLSearchParams({ status: stage.key, page: "0" });
     if (search) params.set("search", search);
     if (owner)  params.set("owner", owner);
+    if (sort)   params.set("sort", sort);
 
     const res  = await fetch(`/api/processos?${params}`);
     const json = await res.json();
@@ -134,16 +137,16 @@ export default function KanbanColumn({
     setItems(json.data);
     setHasMore(json.hasMore);
     setPage(0);
-  }, [stage.key, search, owner]);
+  }, [stage.key, search, owner, sort]);
 
-  // Reset + re-fetch on search/owner/version change
+  // Reset + re-fetch on search/owner/sort/version change
   useEffect(() => {
     setItems([]);
     setPage(0);
     setHasMore(true);
     fetchPage(0, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage.key, search, owner, version]);
+  }, [stage.key, search, owner, sort, version]);
 
   // Refresh silencioso ao receber evento do Realtime
   useEffect(() => {

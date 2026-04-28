@@ -233,7 +233,7 @@ export default function DashboardPage() {
               <PrazoGroup
                 titulo=""
                 items={processos
-                  .filter((p) => p.prazo_entrega_doc && daysDiff(p.prazo_entrega_doc) <= 14)
+                  .filter((p) => p.prazo_entrega_doc && ["fechado_pelo_comercial","pos_vendas_iniciado","documentacao_pendente"].includes(p.status) && daysDiff(p.prazo_entrega_doc) <= 14)
                   .map((p) => ({ processo: p, dateStr: p.prazo_entrega_doc!, diff: daysDiff(p.prazo_entrega_doc!) }))}
                 onOpenProcesso={setSelectedId}
               />
@@ -250,7 +250,7 @@ export default function DashboardPage() {
               <PrazoGroup
                 titulo=""
                 items={processos
-                  .filter((p) => p.prazo_instrumento && daysDiff(p.prazo_instrumento) <= 14)
+                  .filter((p) => p.prazo_instrumento && ["fechado_pelo_comercial","pos_vendas_iniciado","documentacao_pendente","instrumento_definitivo"].includes(p.status) && daysDiff(p.prazo_instrumento) <= 14)
                   .map((p) => ({ processo: p, dateStr: p.prazo_instrumento!, diff: daysDiff(p.prazo_instrumento!) }))}
                 onOpenProcesso={setSelectedId}
               />

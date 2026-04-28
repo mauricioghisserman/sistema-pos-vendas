@@ -9,13 +9,23 @@ export async function GET(request: Request) {
   const page   = parseInt(searchParams.get("page") ?? "0");
   const search = (searchParams.get("search") ?? "").trim();
   const owner  = (searchParams.get("owner") ?? "").trim();
+  const sort   = searchParams.get("sort") ?? "criacao_desc";
 
   const supabase = createServiceClient();
+
+  const ORDER_MAP: Record<string, { col: string; asc: boolean; nullsFirst?: boolean }> = {
+    prazo_doc:     { col: "prazo_entrega_doc", asc: true,  nullsFirst: false },
+    prazo_instr:   { col: "prazo_instrumento", asc: true,  nullsFirst: false },
+    criacao_desc:  { col: "created_at",        asc: false },
+    criacao_asc:   { col: "created_at",        asc: true  },
+    nome:          { col: "titulo",            asc: true  },
+  };
+  const ord = ORDER_MAP[sort] ?? ORDER_MAP.criacao_desc;
 
   let query = supabase
     .from("processos")
     .select("id, titulo, status, prazo_entrega_doc, prazo_instrumento, hubspot_deal_id, hubspot_owner_nome, analistas(nome, email)")
-    .order("created_at", { ascending: false })
+    .order(ord.col, { ascending: ord.asc, nullsFirst: ord.nullsFirst ?? true })
     .range(page * LIMIT, (page + 1) * LIMIT - 1);
 
   if (status) query = query.eq("status", status);

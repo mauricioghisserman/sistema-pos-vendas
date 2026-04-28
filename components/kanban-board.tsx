@@ -20,6 +20,7 @@ export default function KanbanBoard({ stages, owners }: Props) {
   const [selectedId, setSelectedId]       = useState<string | null>(null);
   const [draggingId, setDraggingId]       = useState<string | null>(null);
   const [overStage, setOverStage]         = useState<string | null>(null);
+  const [sort, setSort]                    = useState("criacao_desc");
   const [versions, setVersions]           = useState<Record<string, number>>({});
   const [silentVersions, setSilentVersions] = useState<Record<string, number>>({});
 
@@ -103,6 +104,19 @@ export default function KanbanBoard({ stages, owners }: Props) {
               <option key={o} value={o}>{o}</option>
             ))}
           </select>
+
+          {/* Ordenação */}
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-gray-400 bg-gray-50 text-gray-700"
+          >
+            <option value="criacao_desc">Mais recente</option>
+            <option value="criacao_asc">Mais antigo</option>
+            <option value="prazo_doc">Prazo de documentação</option>
+            <option value="prazo_instr">Prazo de instrumento</option>
+            <option value="nome">Nome</option>
+          </select>
         </div>
       </div>
 
@@ -115,6 +129,7 @@ export default function KanbanBoard({ stages, owners }: Props) {
               stage={stage}
               search={debouncedSearch}
               owner={selectedOwner}
+              sort={sort}
               version={versions[stage.key] ?? 0}
               silentVersion={silentVersions[stage.key] ?? 0}
               isFirst={i === 0}
