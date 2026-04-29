@@ -6,6 +6,11 @@ const PUBLIC_PATHS = ["/login", "/auth/callback", "/portal"];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Upload de arquivo: pula middleware completamente para evitar problemas com multipart
+  if (pathname === "/api/portal/upload") {
+    return NextResponse.next();
+  }
+
   // Rotas públicas: portal externo, login, callback OAuth e webhooks
   const isPublic =
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||

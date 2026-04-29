@@ -161,6 +161,102 @@ function PrazoRow({ label, value, campo, processoId, onUpdate }: {
   );
 }
 
+function AdicionarParteForm({ processoId, onAdicionada }: {
+  processoId: string;
+  onAdicionada: (parte: Parte, novosItens: ChecklistItem[]) => void;
+}) {
+  const [aberto, setAberto]   = useState(false);
+  const [tipo, setTipo]       = useState("comprador");
+  const [nome, setNome]       = useState("");
+  const [email, setEmail]     = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const supabase = createClient();
+
+  async function salvar() {
+    if (!nome.trim() || !email.trim()) return;
+    setSalvando(true);
+
+    const res = await fetch("/api/processos/partes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ processoId, tipo, nome, email }),
+    });
+
+    if (res.ok) {
+      const novaParte: Parte = await res.json();
+
+      // Busca os novos itens de checklist criados para esta parte
+      const { data: novosItens } = await supabase
+        .from("checklist_items")
+        .select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem")
+        .eq("processo_id", processoId)
+        .eq("parte_id", novaParte.id);
+
+      onAdicionada(novaParte, novosItens ?? []);
+      setNome(""); setEmail(""); setTipo("comprador"); setAberto(false);
+    }
+    setSalvando(false);
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        onClick={() => setAberto(true)}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors mt-2 cursor-pointer w-full"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Adicionar parte
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 border border-gray-100 rounded-lg px-3 py-3 space-y-2">
+      <select
+        value={tipo}
+        onChange={(e) => setTipo(e.target.value)}
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400 bg-white"
+      >
+        <option value="comprador">Comprador</option>
+        <option value="vendedor">Vendedor</option>
+        <option value="corretor">Corretor</option>
+      </select>
+      <input
+        type="text"
+        placeholder="Nome"
+        value={nome}
+        onChange={(e) => setNome(e.target.value)}
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+      />
+      <input
+        type="email"
+        placeholder="E-mail"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") salvar(); if (e.key === "Escape") setAberto(false); }}
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={salvar}
+          disabled={salvando || !nome.trim() || !email.trim()}
+          className="text-xs px-3 py-1 bg-gray-900 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 cursor-pointer"
+        >
+          {salvando ? "Salvando..." : "Adicionar"}
+        </button>
+        <button
+          onClick={() => { setAberto(false); setNome(""); setEmail(""); }}
+          className="text-xs px-3 py-1 text-gray-400 hover:text-gray-600 cursor-pointer"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ParteCard({ parte }: { parte: Parte }) {
   const [copiado, setCopiado] = useState(false);
 
@@ -321,6 +417,13 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                       <ParteCard key={parte.id} parte={parte} />
                     ))}
                   </div>
+                  <AdicionarParteForm
+                    processoId={processo.id}
+                    onAdicionada={(novaParte, novosItens) => {
+                      setPartes((prev) => [...prev, novaParte]);
+                      setChecklist((prev) => [...prev, ...novosItens]);
+                    }}
+                  />
                 </div>
 
                 {processo.analistas && (

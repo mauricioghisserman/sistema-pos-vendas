@@ -62,15 +62,25 @@ function UploadButton({ item, token, onSuccess }: { item: Item; token: string; o
     form.append("itemId", item.id);
     form.append("file", file);
 
-    const res = await fetch("/api/portal/upload", { method: "POST", body: form });
-    if (res.ok) {
-      onSuccess(item.id);
-    } else {
-      const json = await res.json();
-      setError(json.error ?? "Erro ao enviar.");
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60_000);
+
+      const res = await fetch("/api/portal/upload", { method: "POST", body: form, signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        onSuccess(item.id);
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setError((json as { error?: string }).error ?? "Erro ao enviar.");
+      }
+    } catch {
+      setError("Erro ao enviar. Verifique sua conexão e tente novamente.");
+    } finally {
+      setLoading(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
-    setLoading(false);
-    if (inputRef.current) inputRef.current.value = "";
   }
 
   const label = item.status === "reprovado" ? "Enviar novamente" : "Anexar documento";
