@@ -26,24 +26,31 @@ async function analisarEAnexar({
   // 1. Validação Gemini — retorna true/false se o arquivo corresponde ao tipo esperado
   let iaValido: boolean | null = null;
   if (GEMINI_MIME_TYPES.has(mimeType) && process.env.GEMINI_API_KEY) {
-    try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const result = await model.generateContent([
-        { inlineData: { mimeType, data: buffer.toString("base64") } },
-        `Este documento foi enviado como "${itemNome}". Responda APENAS com JSON válido, sem markdown: {"valido": true} se o arquivo parece ser este tipo de documento, ou {"valido": false} se não parece.`,
-      ]);
-      const text = result.response.text().trim().replace(/```json\n?|\n?```/g, "").trim();
-      console.log("[gemini] resposta bruta:", text);
-      const parsed = JSON.parse(text);
-      iaValido = parsed.valido === true;
-      console.log("[gemini] ia_valido:", iaValido);
-    } catch (err) {
-      console.error("[gemini] erro:", err);
-      iaValido = null;
+    const MAX_TENTATIVAS = 4;
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      try {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const result = await model.generateContent([
+          { inlineData: { mimeType, data: buffer.toString("base64") } },
+          `Este documento foi enviado como "${itemNome}". Responda APENAS com JSON válido, sem markdown: {"valido": true} se o arquivo parece ser este tipo de documento, ou {"valido": false} se não parece.`,
+        ]);
+        const text = result.response.text().trim().replace(/```json\n?|\n?```/g, "").trim();
+        const parsed = JSON.parse(text);
+        iaValido = parsed.valido === true;
+        break;
+      } catch (err) {
+        const is429 = String(err).includes("429");
+        if (is429 && tentativa < MAX_TENTATIVAS) {
+          const delay = tentativa * 5000;
+          console.log(`[gemini] 429 — aguardando ${delay / 1000}s (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
+          await new Promise((r) => setTimeout(r, delay));
+        } else {
+          console.error("[gemini] erro:", err);
+          break;
+        }
+      }
     }
-  } else {
-    console.log("[gemini] pulou — mimeType:", mimeType, "| key configurada:", !!process.env.GEMINI_API_KEY);
   }
 
   if (iaValido !== null) {
