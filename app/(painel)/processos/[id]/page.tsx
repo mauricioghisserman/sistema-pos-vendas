@@ -57,7 +57,7 @@ export default async function ProcessoPage({ params }: { params: Promise<{ id: s
 
   const { data: checklist } = await supabase
     .from("checklist_items")
-    .select("id, nome, status, categoria, parte_id, obrigatorio, motivo_reprovacao, ordem")
+    .select("id, nome, status, categoria, parte_id, obrigatorio, motivo_reprovacao, ordem, ia_valido")
     .eq("processo_id", id)
     .order("ordem");
 

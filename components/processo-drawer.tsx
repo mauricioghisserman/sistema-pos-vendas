@@ -7,7 +7,7 @@ import TasksSection from "@/components/tasks-section";
 import ResumoSection from "@/components/resumo-section";
 
 type Parte = { id: string; tipo: string; nome: string; email: string; token_acesso: string };
-type ChecklistItem = { id: string; nome: string; status: string; categoria: string; parte_id: string | null; obrigatorio: boolean; motivo_reprovacao: string | null; ordem: number };
+type ChecklistItem = { id: string; nome: string; status: string; categoria: string; parte_id: string | null; obrigatorio: boolean; motivo_reprovacao: string | null; ordem: number; ia_valido: boolean | null };
 type Processo = {
   id: string; titulo: string; status: string; hubspot_deal_id: string;
   observacoes: string | null;
@@ -188,7 +188,7 @@ function AdicionarParteForm({ processoId, onAdicionada }: {
       // Busca os novos itens de checklist criados para esta parte
       const { data: novosItens } = await supabase
         .from("checklist_items")
-        .select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem")
+        .select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido")
         .eq("processo_id", processoId)
         .eq("parte_id", novaParte.id);
 
@@ -316,7 +316,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
     Promise.all([
       supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,analistas(nome,email)").eq("id", processoId).single(),
       supabase.from("partes").select("id,tipo,nome,email,token_acesso").eq("processo_id", processoId).order("tipo"),
-      supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem").eq("processo_id", processoId).order("ordem"),
+      supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido").eq("processo_id", processoId).order("ordem"),
     ]).then(([p, pa, ch]) => {
       const analistas = p.data?.analistas;
       setProcesso({

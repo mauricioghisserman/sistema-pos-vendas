@@ -23,24 +23,29 @@ async function analisarEAnexar({
   const parteNome = parte?.nome ?? "";
   const parteTipo = parte?.tipo ?? "";
 
-  // 1. Análise Gemini
-  let geminiAnalise: string | null = null;
+  // 1. Validação Gemini — retorna true/false se o arquivo corresponde ao tipo esperado
+  let iaValido: boolean | null = null;
   if (GEMINI_MIME_TYPES.has(mimeType) && process.env.GEMINI_API_KEY) {
     try {
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const result = await model.generateContent([
         { inlineData: { mimeType, data: buffer.toString("base64") } },
-        `Este documento foi enviado como "${itemNome}". Em 1-2 frases curtas e objetivas, confirme se o arquivo parece ser isso, ou descreva o que você vê.`,
+        `Este documento foi enviado como "${itemNome}". Responda APENAS com JSON válido, sem markdown: {"valido": true} se o arquivo parece ser este tipo de documento, ou {"valido": false} se não parece.`,
       ]);
-      geminiAnalise = result.response.text().trim();
+      const text = result.response.text().trim().replace(/```json\n?|\n?```/g, "").trim();
+      const parsed = JSON.parse(text);
+      iaValido = parsed.valido === true;
     } catch {
-      geminiAnalise = null;
+      iaValido = null;
     }
   }
 
-  if (geminiAnalise) {
-    await supabase.from("documentos").update({ gemini_analise: geminiAnalise }).eq("id", documentoId);
+  if (iaValido !== null) {
+    await Promise.all([
+      supabase.from("documentos").update({ ia_valido: iaValido }).eq("id", documentoId),
+      supabase.from("checklist_items").update({ ia_valido: iaValido }).eq("id", itemId),
+    ]);
   }
 
   if (!dealId || !process.env.HUBSPOT_API_TOKEN) return;
@@ -77,9 +82,10 @@ async function analisarEAnexar({
 
   // 3. Cria nota no deal
   try {
+    const validacaoLabel = iaValido === true ? "✅ IA validou o documento" : iaValido === false ? "⚠️ IA sinalizou divergência" : "";
     const noteBody = [
       `📄 <strong>${itemNome}</strong> recebido de <strong>${parteNome}</strong> (${parteTipo})`,
-      geminiAnalise ? `<br>🤖 <em>${geminiAnalise}</em>` : "",
+      validacaoLabel ? `<br>${validacaoLabel}` : "",
       hubspotFileUrl ? `<br>🔗 <a href="${hubspotFileUrl}">${fileName}</a>` : `<br>Arquivo: ${fileName}`,
     ].join("");
 

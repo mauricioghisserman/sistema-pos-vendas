@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   // Busca o documento mais recente deste item
   const { data: doc } = await supabase
     .from("documentos")
-    .select("storage_path, nome_arquivo, gemini_analise")
+    .select("storage_path, nome_arquivo, mime_type, ia_valido")
     .eq("checklist_item_id", itemId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -20,12 +20,16 @@ export async function GET(request: Request) {
 
   if (!doc) return NextResponse.json({ error: "Documento não encontrado" }, { status: 404 });
 
-  // Gera URL assinada com validade de 1 hora
   const { data: signed, error } = await supabase.storage
     .from("documentos")
     .createSignedUrl(doc.storage_path, 3600);
 
   if (error || !signed) return NextResponse.json({ error: "Erro ao gerar link" }, { status: 500 });
 
-  return NextResponse.json({ url: signed.signedUrl, nome_arquivo: doc.nome_arquivo, gemini_analise: doc.gemini_analise ?? null });
+  return NextResponse.json({
+    url: signed.signedUrl,
+    nome_arquivo: doc.nome_arquivo,
+    mime_type: doc.mime_type ?? null,
+    ia_valido: doc.ia_valido ?? null,
+  });
 }
