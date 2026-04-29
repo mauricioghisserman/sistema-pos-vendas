@@ -1,8 +1,8 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 
-const GEMINI_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"]);
+const CLAUDE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"]);
 
 async function analisarEAnexar({
   buffer, mimeType, fileName, itemId, documentoId, processoId, parteId,
@@ -23,33 +23,32 @@ async function analisarEAnexar({
   const parteNome = parte?.nome ?? "";
   const parteTipo = parte?.tipo ?? "";
 
-  // 1. Validação Gemini — retorna true/false se o arquivo corresponde ao tipo esperado
+  // 1. Validação Claude — retorna true/false se o arquivo corresponde ao tipo esperado
   let iaValido: boolean | null = null;
-  if (GEMINI_MIME_TYPES.has(mimeType) && process.env.GEMINI_API_KEY) {
-    const MAX_TENTATIVAS = 4;
-    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
-      try {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const result = await model.generateContent([
-          { inlineData: { mimeType, data: buffer.toString("base64") } },
-          `Este documento foi enviado como "${itemNome}". Responda APENAS com JSON válido, sem markdown: {"valido": true} se o arquivo parece ser este tipo de documento, ou {"valido": false} se não parece.`,
-        ]);
-        const text = result.response.text().trim().replace(/```json\n?|\n?```/g, "").trim();
-        const parsed = JSON.parse(text);
-        iaValido = parsed.valido === true;
-        break;
-      } catch (err) {
-        const is429 = String(err).includes("429");
-        if (is429 && tentativa < MAX_TENTATIVAS) {
-          const delay = tentativa * 5000;
-          console.log(`[gemini] 429 — aguardando ${delay / 1000}s (tentativa ${tentativa}/${MAX_TENTATIVAS})`);
-          await new Promise((r) => setTimeout(r, delay));
-        } else {
-          console.error("[gemini] erro:", err);
-          break;
-        }
-      }
+  if (CLAUDE_MIME_TYPES.has(mimeType) && process.env.ANTHROPIC_API_KEY) {
+    try {
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const base64 = buffer.toString("base64");
+      const prompt = `Este documento foi enviado como "${itemNome}". Responda APENAS com JSON válido, sem markdown: {"valido": true} se o arquivo parece ser este tipo de documento, ou {"valido": false} se não parece.`;
+
+      type ImageMedia = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+      const fileBlock: Anthropic.ContentBlockParam =
+        mimeType === "application/pdf"
+          ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }
+          : { type: "image", source: { type: "base64", media_type: mimeType as ImageMedia, data: base64 } };
+
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 64,
+        messages: [{ role: "user", content: [fileBlock, { type: "text", text: prompt }] }],
+      });
+
+      const text = (response.content[0] as Anthropic.TextBlock).text.trim().replace(/```json\n?|\n?```/g, "").trim();
+      iaValido = JSON.parse(text).valido === true;
+    } catch (err) {
+      console.error("[claude] erro na validação:", err);
+      iaValido = null;
     }
   }
 
@@ -94,7 +93,7 @@ async function analisarEAnexar({
 
   // 3. Cria nota no deal
   try {
-    const validacaoLabel = iaValido === true ? "✅ IA validou o documento" : iaValido === false ? "⚠️ IA sinalizou divergência" : "";
+    const validacaoLabel = iaValido === true ? "✅ Validado pela IA" : iaValido === false ? "⚠️ IA sinalizou divergência" : "";
     const noteBody = [
       `📄 <strong>${itemNome}</strong> recebido de <strong>${parteNome}</strong> (${parteTipo})`,
       validacaoLabel ? `<br>${validacaoLabel}` : "",
