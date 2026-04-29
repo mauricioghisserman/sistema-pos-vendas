@@ -34,11 +34,16 @@ async function analisarEAnexar({
         `Este documento foi enviado como "${itemNome}". Responda APENAS com JSON válido, sem markdown: {"valido": true} se o arquivo parece ser este tipo de documento, ou {"valido": false} se não parece.`,
       ]);
       const text = result.response.text().trim().replace(/```json\n?|\n?```/g, "").trim();
+      console.log("[gemini] resposta bruta:", text);
       const parsed = JSON.parse(text);
       iaValido = parsed.valido === true;
-    } catch {
+      console.log("[gemini] ia_valido:", iaValido);
+    } catch (err) {
+      console.error("[gemini] erro:", err);
       iaValido = null;
     }
+  } else {
+    console.log("[gemini] pulou — mimeType:", mimeType, "| key configurada:", !!process.env.GEMINI_API_KEY);
   }
 
   if (iaValido !== null) {
