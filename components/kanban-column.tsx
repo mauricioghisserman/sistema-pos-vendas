@@ -11,7 +11,7 @@ function prazoLabel(prazo: string | null) {
   hoje.setHours(0, 0, 0, 0);
   const data = new Date(prazo + "T00:00:00");
   const diff = Math.ceil((data.getTime() - hoje.getTime()) / 86400000);
-  const fmt = data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const fmt = data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
   return { fmt, diff };
 }
 
@@ -30,23 +30,43 @@ function ProcessoCard({ processo }: { processo: Processo }) {
     ? ownerNome.split(" ").slice(0, 2).map((n: string) => n[0]).join("").toUpperCase()
     : null;
 
+  const prazoColor = (diff: number) =>
+    diff < 0 ? "text-red-500" : diff <= 5 ? "text-amber-500" : "text-gray-400";
+
+  const docsTotal    = processo.docs_total;
+  const docsAprovados = processo.docs_aprovados;
+  const hasDocs = docsTotal > 0;
+  const allAprovados = hasDocs && docsAprovados === docsTotal;
+
   return (
     <div className="rounded p-3 cursor-pointer hover:brightness-95 transition-all" style={{ backgroundColor: "#f0ede8" }}>
-      <div className="mb-2">
-        <p className="text-sm font-medium text-gray-900 leading-snug">{processo.titulo}</p>
-      </div>
-      <div className="space-y-0.5 mb-3">
-        {prazoDoc && (
-          <p className={`text-xs ${prazoDoc.diff < 0 ? "text-red-500" : prazoDoc.diff <= 5 ? "text-amber-500" : "text-gray-400"}`}>
-            Prazo documentação: {prazoDoc.fmt} ({prazoDoc.diff >= 0 ? prazoDoc.diff : Math.abs(prazoDoc.diff)}{prazoDoc.diff < 0 ? " d. atraso" : " d."})
-          </p>
-        )}
-        {prazoInstr && (
-          <p className={`text-xs ${prazoInstr.diff < 0 ? "text-red-500" : prazoInstr.diff <= 5 ? "text-amber-500" : "text-gray-400"}`}>
-            Prazo instrumento: {prazoInstr.fmt} ({prazoInstr.diff >= 0 ? prazoInstr.diff : Math.abs(prazoInstr.diff)}{prazoInstr.diff < 0 ? " d. atraso" : " d."})
-          </p>
-        )}
-      </div>
+      <p className="text-sm font-medium text-gray-900 leading-snug mb-2">{processo.titulo}</p>
+
+      {/* Prazos compactos — numa linha só */}
+      {(prazoDoc || prazoInstr) && (
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mb-2">
+          {prazoDoc && (
+            <span className={`inline-flex items-center gap-1 text-xs ${prazoColor(prazoDoc.diff)}`}>
+              <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M5 19h14a2 2 0 002-2V7.414A2 2 0 0020.586 6L15 .414A2 2 0 0013.586 0H5a2 2 0 00-2 2v15a2 2 0 002 2z" />
+              </svg>
+              {prazoDoc.fmt}
+              <span className="opacity-70">({Math.abs(prazoDoc.diff)}{prazoDoc.diff < 0 ? "d atr." : "d"})</span>
+            </span>
+          )}
+          {prazoDoc && prazoInstr && <span className="text-gray-300 text-xs">·</span>}
+          {prazoInstr && (
+            <span className={`inline-flex items-center gap-1 text-xs ${prazoColor(prazoInstr.diff)}`}>
+              <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.83a2 2 0 01-.91.54l-3.09.777.777-3.09a2 2 0 01.54-.91z" />
+              </svg>
+              {prazoInstr.fmt}
+              <span className="opacity-70">({Math.abs(prazoInstr.diff)}{prazoInstr.diff < 0 ? "d atr." : "d"})</span>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2">
         {ownerInitials ? (
           <div className="flex items-center gap-1.5">
@@ -56,7 +76,18 @@ function ProcessoCard({ processo }: { processo: Processo }) {
             <span className="text-xs text-gray-500 truncate max-w-[100px]">{ownerNome}</span>
           </div>
         ) : <div />}
+
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Progresso de docs */}
+          {hasDocs && (
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+              allAprovados
+                ? "text-green-600 bg-green-50"
+                : "text-gray-500 bg-gray-200"
+            }`}>
+              {docsAprovados}/{docsTotal} docs
+            </span>
+          )}
           {processo.open_tasks_count > 0 && (
             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
               <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

@@ -40,21 +40,47 @@ export async function GET(request: Request) {
     analistas: Array.isArray(p.analistas) ? (p.analistas[0] ?? null) : p.analistas,
   }));
 
-  // Fetch open task counts for these processos in one query
   const ids = rawItems.map((p: { id: string; [key: string]: unknown }) => p.id);
+
   let taskCountMap: Record<string, number> = {};
+  let docsMap: Record<string, { total: number; aprovados: number }> = {};
+
   if (ids.length > 0) {
-    const { data: taskRows } = await supabase
-      .from("tasks")
-      .select("processo_id")
-      .in("processo_id", ids)
-      .eq("concluida", false);
+    const [{ data: taskRows }, { data: parteRows }] = await Promise.all([
+      supabase.from("tasks").select("processo_id").in("processo_id", ids).eq("concluida", false),
+      supabase.from("partes").select("id, processo_id").in("processo_id", ids),
+    ]);
+
     for (const row of taskRows ?? []) {
       taskCountMap[row.processo_id] = (taskCountMap[row.processo_id] ?? 0) + 1;
     }
+
+    const parteIds = (parteRows ?? []).map((p) => p.id);
+    const parteToProcesso: Record<string, string> = {};
+    for (const p of parteRows ?? []) parteToProcesso[p.id] = p.processo_id;
+
+    if (parteIds.length > 0) {
+      const { data: checklistRows } = await supabase
+        .from("checklist_items")
+        .select("parte_id, status")
+        .in("parte_id", parteIds);
+
+      for (const row of checklistRows ?? []) {
+        const pid = parteToProcesso[row.parte_id];
+        if (!pid) continue;
+        if (!docsMap[pid]) docsMap[pid] = { total: 0, aprovados: 0 };
+        docsMap[pid].total++;
+        if (row.status === "aprovado") docsMap[pid].aprovados++;
+      }
+    }
   }
 
-  const items = rawItems.map((p: { id: string; [key: string]: unknown }) => ({ ...p, open_tasks_count: taskCountMap[p.id] ?? 0 }));
+  const items = rawItems.map((p: { id: string; [key: string]: unknown }) => ({
+    ...p,
+    open_tasks_count: taskCountMap[p.id] ?? 0,
+    docs_total: docsMap[p.id]?.total ?? 0,
+    docs_aprovados: docsMap[p.id]?.aprovados ?? 0,
+  }));
 
   return NextResponse.json({ data: items, hasMore: items.length === LIMIT, page });
 }
