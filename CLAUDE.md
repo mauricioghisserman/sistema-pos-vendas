@@ -66,11 +66,18 @@ Ferramenta interna para o time de pós-vendas controlar processos, documentaçã
   - ~757 deals antigos têm owner nulo — owners foram deletados do HubSpot, não recuperável
   - Deals novos puxam o owner automaticamente via webhook
 - **Partes da transação**: deals de pós-vendas têm um campo `pv_legal_center__hubspot_deal_id_comercial` que guarda o ID do deal do pipe **comercial**. As `partes_da_transacao` (objeto customizado HubSpot `2-57453831`) estão associadas ao deal **comercial**, não ao de pós-vendas. Para buscar partes de um processo: ler `pv_legal_center__hubspot_deal_id_comercial` do deal de pós-vendas → usar esse ID para buscar `partes_da_transacao`. Tipo da parte determinado pelo tipo de associação: `includes("compradora")` → comprador, `includes("vendedora")` → vendedor. Deals antigos usam fallback nos campos `pv__e_mail_*`.
+- **Tipos de associação HubSpot usam Unicode** (ç, ã, etc.) — nunca comparar com `===`, sempre usar `.includes("compradora")` / `.includes("vendedora")` para evitar falha silenciosa.
+- **Comissões**: objeto customizado HubSpot `2-49253269`. Associado ao deal **comercial**. Propriedades: `corretor` (nome), `papel_do_corretor`. Imobiliária = empresa associada à comissão (buscar via `/associations/companies`). Exige scopes no Private App: `crm.objects.custom.read`, `crm.schemas.custom.read`, `crm.objects.companies.read`.
+- **Upload no portal**: Turbopack (dev) mata bodies binários (`Content-Type: image/jpeg`) antes do handler rodar → `Error: aborted`. Solução: enviar arquivo como base64 dentro de JSON. Cliente usa `FileReader.readAsDataURL()`, servidor usa `Buffer.from(data, "base64")`. Funciona em dev e produção.
+- **Validação IA de documentos**: Claude Haiku (`claude-haiku-4-5-20251001`) via `ANTHROPIC_API_KEY`. Recebe o arquivo em base64, responde JSON `{"valido": true/false}`. Roda em background após upload. Resultado salvo em `documentos.ia_valido` e `checklist_items.ia_valido`.
+- **Link HubSpot para deal**: `https://app.hubspot.com/contacts/23482022/record/0-3/{hubspot_deal_id}` (portal ID 23482022, tipo 0-3 = deals).
+- **CPF ou CNH**: template de checklist tem item nomeado "CPF ou CNH" (renomeado via SQL de "CPF").
+- **`processos.hubspot_deal_id_comercial`**: coluna TEXT adicionada ao Supabase. Populada via webhook (novos deals) e pelo script `backfill-deal-comercial.mjs` (existentes). 600/1240 processos têm o campo preenchido; 640 não têm deal comercial vinculado no HubSpot.
 
 ## Checklist Padrão
 
-**Comprador:** RG, CPF, Comprovante de Endereço, Comprovante de Estado Civil
-**Vendedor:** RG, CPF, Comprovante de Endereço, Comprovante de Estado Civil
+**Comprador:** RG, CPF ou CNH, Comprovante de Endereço, Comprovante de Estado Civil
+**Vendedor:** RG, CPF ou CNH, Comprovante de Endereço, Comprovante de Estado Civil
 **Imóvel:** Matrícula do Imóvel, IPTU
 
 ## Campos do Deal HubSpot (mapeados)
@@ -139,6 +146,7 @@ Schema: `sistema_pos_vendas`
 - `processos.hubspot_owner_nome` — Nome do responsável pelo deal
 - `processos.endereco_imovel` — Endereço formatado (bairro + cidade)
 - `processos.observacoes` — Observações vindas do HubSpot
+- `processos.hubspot_deal_id_comercial` — ID do deal no pipe comercial (usado para buscar partes e comissões)
 
 ## Arquitetura de Arquivos
 
@@ -156,7 +164,8 @@ app/
     checklist/items/        — POST cria novo item adicional no checklist
     documentos/url/         — GET gera signed URL do Supabase Storage
     portal/route.ts         — GET dados do portal por token
-    portal/upload/          — POST upload de documento pelo portal
+    portal/upload/          — POST upload via base64 JSON (Turbopack-safe); valida token, faz upload Supabase, dispara IA + HubSpot em background
+    processos/comissoes/    — GET corretores/imobiliária do deal comercial (HubSpot objeto 2-49253269)
     tasks/route.ts          — GET/POST tasks por processo; ?all=true retorna todas abertas
     resumo/route.ts         — GET resumo IA (Gemini) com contexto completo do processo
     dashboard/route.ts      — GET processos com prazo vencendo nos próximos 14 dias
@@ -175,6 +184,8 @@ components/
 scripts/
   sync-hubspot.mjs          — sync completo HubSpot → Supabase (one-shot)
   backfill-owners.mjs       — backfill de hubspot_owner_nome
+  backfill-partes.mjs       — backfill de partes via partes_da_transacao (deal comercial) para processos existentes
+  backfill-deal-comercial.mjs — backfill de hubspot_deal_id_comercial para processos existentes
 ```
 
 ## Status do Projeto
@@ -202,7 +213,17 @@ scripts/
 - [x] Resumo IA por processo (Gemini 2.0 Flash) com contexto completo
 - [x] Webhook HubSpot: retorna 200 imediato, processa em background (fix timeout)
 - [x] Botão "Copiar link do portal" por parte no drawer
+- [x] Botão "Abrir portal" por parte no drawer (abre em nova aba)
 - [x] Analista pode adicionar documentos adicionais no checklist
+- [x] Validação IA de documentos (Claude Haiku) com resultado inline no checklist
+- [x] Upload portal via base64 JSON (fix Turbopack dev + produção)
+- [x] Card do kanban: prazos compactos com ícones (doc + caneta) em dd/mm/yy
+- [x] Card do kanban: badge de progresso de documentos (X/Y docs, verde quando completo)
+- [x] Partes da transação: leitura via objeto customizado HubSpot `partes_da_transacao` (deal comercial)
+- [x] Webhook salva `hubspot_deal_id_comercial` em todos os processos
+- [x] Seção Corretores no drawer: nome + imobiliária + papel (via comissões HubSpot)
+- [x] Link HubSpot correto no drawer (`/contacts/23482022/record/0-3/{id}`)
+- [x] Checklist item "CPF ou CNH" (antes era só "CPF")
 - [ ] Envio de email com link do portal para as partes
 - [ ] Resumo diário (Claude API)
 - [ ] Inscrições nativas HubSpot para outras propriedades (owner, prazos)
