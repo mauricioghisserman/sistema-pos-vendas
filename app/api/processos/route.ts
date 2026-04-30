@@ -55,9 +55,9 @@ export async function GET(request: Request) {
       taskCountMap[row.processo_id] = (taskCountMap[row.processo_id] ?? 0) + 1;
     }
 
-    const parteIds = (parteRows ?? []).map((p) => p.id);
+    const parteIds = (parteRows ?? []).map((p: { id: string; processo_id: string }) => p.id);
     const parteToProcesso: Record<string, string> = {};
-    for (const p of parteRows ?? []) parteToProcesso[p.id] = p.processo_id;
+    for (const p of (parteRows ?? []) as { id: string; processo_id: string }[]) parteToProcesso[p.id] = p.processo_id;
 
     if (parteIds.length > 0) {
       const { data: checklistRows } = await supabase
