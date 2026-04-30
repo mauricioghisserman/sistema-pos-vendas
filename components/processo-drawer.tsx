@@ -272,27 +272,41 @@ function ParteCard({ parte }: { parte: Parte }) {
     <div className="border border-gray-100 rounded-lg px-3 py-2.5">
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-xs font-medium text-gray-500 capitalize">{parte.tipo}</span>
-        <button
-          onClick={copiarLink}
-          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-          title="Copiar link do portal"
-        >
-          {copiado ? (
-            <>
-              <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-green-500">Copiado!</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <span>Copiar link</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={copiarLink}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+            title="Copiar link do portal"
+          >
+            {copiado ? (
+              <>
+                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-green-500">Copiado!</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>Copiar link</span>
+              </>
+            )}
+          </button>
+          <a
+            href={`${typeof window !== "undefined" ? window.location.origin : ""}/portal?token=${parte.token_acesso}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+            title="Abrir portal"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            <span>Abrir</span>
+          </a>
+        </div>
       </div>
       <p className="text-sm text-gray-900">{parte.nome}</p>
       <p className="text-xs text-gray-400 truncate">{parte.email}</p>

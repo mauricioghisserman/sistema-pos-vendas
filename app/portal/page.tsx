@@ -57,18 +57,26 @@ function UploadButton({ item, token, onSuccess }: { item: Item; token: string; o
     setError("");
     setLoading(true);
 
-    const form = new FormData();
-    form.append("token", token);
-    form.append("itemId", item.id);
-    form.append("file", file);
-
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60_000);
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-      const res = await fetch("/api/portal/upload", { method: "POST", body: form, signal: controller.signal });
-      clearTimeout(timeout);
-
+      const res = await fetch("/api/portal/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          itemId: item.id,
+          fileName: file.name,
+          mimeType: file.type,
+          fileSize: file.size,
+          data: base64,
+        }),
+      });
       if (res.ok) {
         onSuccess(item.id);
       } else {

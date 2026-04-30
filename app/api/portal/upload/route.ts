@@ -23,7 +23,6 @@ async function analisarEAnexar({
   const parteNome = parte?.nome ?? "";
   const parteTipo = parte?.tipo ?? "";
 
-  // 1. Validação Claude — retorna true/false se o arquivo corresponde ao tipo esperado
   let iaValido: boolean | null = null;
   if (CLAUDE_MIME_TYPES.has(mimeType) && process.env.ANTHROPIC_API_KEY) {
     try {
@@ -48,7 +47,6 @@ async function analisarEAnexar({
       iaValido = JSON.parse(text).valido === true;
     } catch (err) {
       console.error("[claude] erro na validação:", err);
-      iaValido = null;
     }
   }
 
@@ -61,7 +59,6 @@ async function analisarEAnexar({
 
   if (!dealId || !process.env.HUBSPOT_API_TOKEN) return;
 
-  // 2. Upload para HubSpot Files
   let hubspotFileUrl: string | null = null;
   let hubspotFileId: string | null  = null;
 
@@ -91,7 +88,6 @@ async function analisarEAnexar({
     }
   } catch { /* silently fail */ }
 
-  // 3. Cria nota no deal
   try {
     const validacaoLabel = iaValido === true ? "✅ Validado pela IA" : iaValido === false ? "⚠️ IA sinalizou divergência" : "";
     const noteBody = [
@@ -107,28 +103,25 @@ async function analisarEAnexar({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        properties: {
-          hs_note_body: noteBody,
-          hs_timestamp: new Date().toISOString(),
-        },
-        associations: [
-          {
-            to: { id: dealId },
-            types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 214 }],
-          },
-        ],
+        properties: { hs_note_body: noteBody, hs_timestamp: new Date().toISOString() },
+        associations: [{
+          to: { id: dealId },
+          types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 214 }],
+        }],
       }),
     });
   } catch { /* silently fail */ }
 }
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
-  const token  = formData.get("token") as string;
-  const itemId = formData.get("itemId") as string;
-  const file   = formData.get("file") as File;
+  const t0 = Date.now();
+  const log = (msg: string) => console.log(`[upload] +${Date.now() - t0}ms ${msg}`);
 
-  if (!token || !itemId || !file) {
+  const { token, itemId, fileName, mimeType, fileSize, data } = await request.json();
+  log(`recebido — fileName=${fileName} mimeType=${mimeType} fileSize=${fileSize}`);
+
+  if (!token || !itemId || !fileName || !mimeType || !data) {
+    log("dados incompletos");
     return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
   }
 
@@ -140,7 +133,8 @@ export async function POST(request: Request) {
     .eq("token_acesso", token)
     .single();
 
-  if (!parte) return NextResponse.json({ error: "Token inválido" }, { status: 403 });
+  if (!parte) { log("token inválido"); return NextResponse.json({ error: "Token inválido" }, { status: 403 }); }
+  log(`parte ok — id=${parte.id}`);
 
   const { data: item } = await supabase
     .from("checklist_items")
@@ -149,39 +143,45 @@ export async function POST(request: Request) {
     .eq("parte_id", parte.id)
     .single();
 
-  if (!item) return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
-  if (item.status === "aprovado") return NextResponse.json({ error: "Documento já aprovado" }, { status: 400 });
+  if (!item) { log("item não encontrado"); return NextResponse.json({ error: "Item não encontrado" }, { status: 404 }); }
+  if (item.status === "aprovado") { log("já aprovado"); return NextResponse.json({ error: "Documento já aprovado" }, { status: 400 }); }
+  log(`item ok — status=${item.status}`);
 
-  const ext = file.name.split(".").pop() ?? "bin";
+  const buffer = Buffer.from(data, "base64");
+  log(`buffer decodificado — ${buffer.byteLength} bytes`);
+
+  const ext = fileName.split(".").pop() ?? "bin";
   const storagePath = `${parte.processo_id}/${parte.id}/${itemId}/${Date.now()}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  log(`enviando para storage — path=${storagePath}`);
 
   const { error: uploadError } = await supabase.storage
     .from("documentos")
-    .upload(storagePath, buffer, { contentType: file.type, upsert: true });
+    .upload(storagePath, buffer, { contentType: mimeType, upsert: true });
 
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
+  if (uploadError) { log(`storage error: ${uploadError.message}`); return NextResponse.json({ error: uploadError.message }, { status: 500 }); }
+  log("storage ok");
 
   const { data: doc } = await supabase.from("documentos").insert({
     checklist_item_id: itemId,
     storage_path: storagePath,
-    nome_arquivo: file.name,
-    tamanho_bytes: file.size,
-    mime_type: file.type,
+    nome_arquivo: fileName,
+    tamanho_bytes: fileSize ?? buffer.byteLength,
+    mime_type: mimeType,
     enviado_por_parte: parte.id,
   }).select("id").single();
 
   await supabase
     .from("checklist_items")
-    .update({ status: "enviado", motivo_reprovacao: null })
+    .update({ status: "enviado", motivo_reprovacao: null, ia_valido: null })
     .eq("id", itemId);
 
-  // Análise Gemini + anexo HubSpot em background
+  log(`db ok — doc.id=${doc?.id}`);
+
   if (doc?.id) {
     analisarEAnexar({
       buffer,
-      mimeType: file.type,
-      fileName: file.name,
+      mimeType,
+      fileName,
       itemId,
       documentoId: doc.id,
       processoId: parte.processo_id,
@@ -189,5 +189,6 @@ export async function POST(request: Request) {
     }).catch(console.error);
   }
 
-  return NextResponse.json({ ok: true, storagePath });
+  log("respondendo ok");
+  return NextResponse.json({ ok: true });
 }
