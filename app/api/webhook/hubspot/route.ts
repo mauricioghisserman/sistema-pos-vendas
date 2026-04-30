@@ -88,17 +88,68 @@ async function processEventos(eventos: Record<string, unknown>[]) {
       // Cria as partes
       const partesParaInserir: { processo_id: string; tipo: string; nome: string; email: string }[] = [];
 
-      // Compradores: pv__e_mail_1___comprador ... pv__e_mail_6___comprador
-      [1,2,3,4,5,6].forEach((i) => {
-        const email = props[`pv__e_mail_${i}___comprador`];
-        if (email) partesParaInserir.push({ processo_id: processoId, tipo: "comprador", nome: email.split("@")[0], email });
-      });
+      // Tenta buscar partes_da_transacao (objeto customizado — deals novos)
+      const assocRes = await fetch(
+        `https://api.hubapi.com/crm/v3/objects/deals/${dealId}/associations/2-57453831`,
+        { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
+      );
 
-      // Vendedores: pv__e_mail_1 ... pv__e_mail_6
-      [1,2,3,4,5,6].forEach((i) => {
-        const email = props[`pv__e_mail_${i}`];
-        if (email) partesParaInserir.push({ processo_id: processoId, tipo: "vendedor", nome: email.split("@")[0], email });
-      });
+      if (assocRes.ok) {
+        const assocData = await assocRes.json();
+        const assocResults: { id: string; type: string }[] = assocData.results ?? [];
+
+        // Monta mapa id → tipo pela associação tipada
+        const tipoMap: Record<string, string> = {};
+        for (const r of assocResults) {
+          if (r.type === "parte_compradora_transação") tipoMap[r.id] = "comprador";
+          else if (r.type === "parte_vendedora_transação") tipoMap[r.id] = "vendedor";
+        }
+
+        const parteIds = Object.keys(tipoMap);
+        if (parteIds.length > 0) {
+          const batchRes = await fetch(
+            `https://api.hubapi.com/crm/v3/objects/2-57453831/batch/read`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                inputs: parteIds.map((id) => ({ id })),
+                properties: ["nome", "email"],
+              }),
+            }
+          );
+
+          if (batchRes.ok) {
+            const batchData = await batchRes.json();
+            for (const parte of batchData.results ?? []) {
+              const tipo = tipoMap[parte.id];
+              if (!tipo) continue;
+              const p = parte.properties as Record<string, string | null>;
+              partesParaInserir.push({
+                processo_id: processoId,
+                tipo,
+                nome: p.nome ?? "",
+                email: p.email ?? "",
+              });
+            }
+          }
+        }
+      }
+
+      // Fallback: campos legados pv__e_mail_* (deals antigos sem partes_da_transacao)
+      if (partesParaInserir.length === 0) {
+        [1,2,3,4,5,6].forEach((i) => {
+          const email = props[`pv__e_mail_${i}___comprador`];
+          if (email) partesParaInserir.push({ processo_id: processoId, tipo: "comprador", nome: email.split("@")[0], email });
+        });
+        [1,2,3,4,5,6].forEach((i) => {
+          const email = props[`pv__e_mail_${i}`];
+          if (email) partesParaInserir.push({ processo_id: processoId, tipo: "vendedor", nome: email.split("@")[0], email });
+        });
+      }
 
       if (partesParaInserir.length > 0) {
         const { data: partesInseridas } = await supabase
