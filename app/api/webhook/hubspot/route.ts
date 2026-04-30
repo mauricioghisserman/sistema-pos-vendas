@@ -21,7 +21,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
 
     // Busca os dados completos do deal no HubSpot
     const dealRes = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas`,
+      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial`,
       { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
     );
 
@@ -78,6 +78,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           prazo_registro: props.pv__prazo_registro ?? null,
           observacoes: props.pv__observacoes_pos_vendas ?? null,
           hubspot_owner_nome,
+          hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
         })
         .select("id")
         .single();
@@ -88,9 +89,10 @@ async function processEventos(eventos: Record<string, unknown>[]) {
       // Cria as partes
       const partesParaInserir: { processo_id: string; tipo: string; nome: string; email: string }[] = [];
 
-      // Tenta buscar partes_da_transacao (objeto customizado — deals novos)
+      // Busca partes_da_transacao via deal do comercial (campo pv_legal_center__hubspot_deal_id_comercial)
+      const dealIdComercial = props.pv_legal_center__hubspot_deal_id_comercial ?? dealId;
       const assocRes = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/deals/${dealId}/associations/2-57453831`,
+        `https://api.hubapi.com/crm/v3/objects/deals/${dealIdComercial}/associations/2-57453831`,
         { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
       );
 
@@ -101,8 +103,8 @@ async function processEventos(eventos: Record<string, unknown>[]) {
         // Monta mapa id → tipo pela associação tipada
         const tipoMap: Record<string, string> = {};
         for (const r of assocResults) {
-          if (r.type === "parte_compradora_transação") tipoMap[r.id] = "comprador";
-          else if (r.type === "parte_vendedora_transação") tipoMap[r.id] = "vendedor";
+          if (r.type.includes("compradora")) tipoMap[r.id] = "comprador";
+          else if (r.type.includes("vendedora")) tipoMap[r.id] = "vendedor";
         }
 
         const parteIds = Object.keys(tipoMap);
@@ -199,6 +201,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           prazo_registro: props.pv__prazo_registro ?? null,
           observacoes: props.pv__observacoes_pos_vendas ?? null,
           hubspot_owner_nome,
+          hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
         })
         .eq("id", processoId);
     }

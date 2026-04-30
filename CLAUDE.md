@@ -65,6 +65,7 @@ Ferramenta interna para o time de pós-vendas controlar processos, documentaçã
 - Prazos HubSpot exigem timestamp em ms (meia-noite UTC): `new Date(valor + "T00:00:00.000Z").getTime()`
   - ~757 deals antigos têm owner nulo — owners foram deletados do HubSpot, não recuperável
   - Deals novos puxam o owner automaticamente via webhook
+- **Partes da transação**: deals de pós-vendas têm um campo `pv_legal_center__hubspot_deal_id_comercial` que guarda o ID do deal do pipe **comercial**. As `partes_da_transacao` (objeto customizado HubSpot `2-57453831`) estão associadas ao deal **comercial**, não ao de pós-vendas. Para buscar partes de um processo: ler `pv_legal_center__hubspot_deal_id_comercial` do deal de pós-vendas → usar esse ID para buscar `partes_da_transacao`. Tipo da parte determinado pelo tipo de associação: `includes("compradora")` → comprador, `includes("vendedora")` → vendedor. Deals antigos usam fallback nos campos `pv__e_mail_*`.
 
 ## Checklist Padrão
 

@@ -15,6 +15,7 @@ type Processo = {
   prazo_instrumento: string | null; prazo_registro: string | null;
   analistas: { nome: string; email: string } | null;
 };
+type Comissao = { corretor: string | null; imobiliaria: string | null; papel: string | null };
 
 const STATUS_LABEL: Record<string, string> = {
   fechado_pelo_comercial: "Fechado pelo comercial",
@@ -320,6 +321,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
   const [processo, setProcesso] = useState<Processo | null>(null);
   const [partes, setPartes] = useState<Parte[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [comissoes, setComissoes] = useState<Comissao[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -331,7 +333,8 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,analistas(nome,email)").eq("id", processoId).single(),
       supabase.from("partes").select("id,tipo,nome,email,token_acesso").eq("processo_id", processoId).order("tipo"),
       supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido").eq("processo_id", processoId).order("ordem"),
-    ]).then(([p, pa, ch]) => {
+      fetch(`/api/processos/comissoes?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
+    ]).then(([p, pa, ch, cm]) => {
       const analistas = p.data?.analistas;
       setProcesso({
         ...p.data!,
@@ -339,6 +342,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       });
       setPartes(pa.data ?? []);
       setChecklist(ch.data ?? []);
+      setComissoes(Array.isArray(cm) ? cm : []);
       setLoading(false);
     });
   }, [processoId]);
@@ -393,7 +397,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{aprovados}/{checklist.length} aprovados</span>
-                <a href={`https://app.hubspot.com/contacts/deals/${processo.hubspot_deal_id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors">
+                <a href={`https://app.hubspot.com/contacts/23482022/record/0-3/${processo.hubspot_deal_id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors">
                   HubSpot ↗
                 </a>
               </div>
@@ -423,6 +427,31 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                     )}
                   </div>
                 </div>
+
+                {comissoes.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Corretores</h3>
+                    <div className="space-y-2">
+                      {comissoes.map((c, i) => (
+                        <div key={i} className="text-sm space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                            </svg>
+                            <span className="text-gray-700">{c.corretor ?? "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                            </svg>
+                            <span className="text-gray-500">{c.imobiliaria ?? "—"}</span>
+                          </div>
+                          {c.papel && <p className="text-xs text-gray-400 pl-5">{c.papel}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Partes</h3>
