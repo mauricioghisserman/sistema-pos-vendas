@@ -223,6 +223,8 @@ function AdicionarParteForm({ processoId, onAdicionada }: {
         <option value="comprador">Comprador</option>
         <option value="vendedor">Vendedor</option>
         <option value="corretor">Corretor</option>
+        <option value="advogado_comprador">Advogado comprador</option>
+        <option value="advogado_vendedor">Advogado vendedor</option>
       </select>
       <input
         type="text"
@@ -272,7 +274,7 @@ function ParteCard({ parte }: { parte: Parte }) {
   return (
     <div className="border border-gray-100 rounded-lg px-3 py-2.5">
       <div className="flex items-center justify-between mb-0.5">
-        <span className="text-xs font-medium text-gray-500 capitalize">{parte.tipo}</span>
+        <span className="text-xs font-medium text-gray-500 capitalize">{{"comprador":"Comprador","vendedor":"Vendedor","corretor":"Corretor","advogado_comprador":"Advogado comprador","advogado_vendedor":"Advogado vendedor"}[parte.tipo] ?? parte.tipo}</span>
         <div className="flex items-center gap-2">
           <button
             onClick={copiarLink}
@@ -358,10 +360,15 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
 
   // Agrupa checklist por parte
   const grupos: { label: string; tipo: string; parteId: string | null; items: ChecklistItem[] }[] = [];
-  const partesOrdenadas = [...partes].sort((a, b) => ["comprador","vendedor","corretor"].indexOf(a.tipo) - ["comprador","vendedor","corretor"].indexOf(b.tipo));
+  const TIPO_ORDEM = ["comprador","vendedor","corretor","advogado_comprador","advogado_vendedor"];
+  const TIPO_LABEL: Record<string, string> = {
+    comprador: "Comprador", vendedor: "Vendedor", corretor: "Corretor",
+    advogado_comprador: "Advogado comprador", advogado_vendedor: "Advogado vendedor",
+  };
+  const partesOrdenadas = [...partes].sort((a, b) => TIPO_ORDEM.indexOf(a.tipo) - TIPO_ORDEM.indexOf(b.tipo));
   for (const parte of partesOrdenadas) {
     const items = checklist.filter((c) => c.parte_id === parte.id);
-    if (items.length > 0) grupos.push({ label: `${parte.tipo.charAt(0).toUpperCase() + parte.tipo.slice(1)} — ${parte.nome}`, tipo: parte.tipo, parteId: parte.id, items });
+    if (items.length > 0) grupos.push({ label: `${TIPO_LABEL[parte.tipo] ?? parte.tipo} — ${parte.nome}`, tipo: parte.tipo, parteId: parte.id, items });
   }
   const itemsImovel = checklist.filter((c) => c.categoria === "imovel" && !c.parte_id);
   if (itemsImovel.length > 0) grupos.push({ label: "Imóvel", tipo: "imovel", parteId: null, items: itemsImovel });
