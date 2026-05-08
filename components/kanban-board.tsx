@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Stage } from "@/app/(painel)/processos/page";
 import type { STAGES } from "@/app/(painel)/processos/page";
 import type { Processo } from "@/app/(painel)/processos/page";
@@ -14,10 +15,11 @@ type Props = {
 };
 
 export default function KanbanBoard({ stages, owners }: Props) {
+  const searchParams                       = useSearchParams();
   const [search, setSearch]               = useState("");
   const [debouncedSearch, setDebounced]   = useState("");
   const [selectedOwner, setSelectedOwner] = useState("");
-  const [selectedId, setSelectedId]       = useState<string | null>(null);
+  const [selectedId, setSelectedId]       = useState<string | null>(() => searchParams.get("open"));
   const [draggingId, setDraggingId]       = useState<string | null>(null);
   const [overStage, setOverStage]         = useState<string | null>(null);
   const [sort, setSort]                    = useState("criacao_desc");

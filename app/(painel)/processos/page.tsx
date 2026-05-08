@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { Suspense } from "react";
 import KanbanBoard from "@/components/kanban-board";
 
 export const STAGES = [
@@ -40,7 +41,9 @@ export default async function ProcessosPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <KanbanBoard stages={STAGES} owners={owners} />
+      <Suspense>
+        <KanbanBoard stages={STAGES} owners={owners} />
+      </Suspense>
     </div>
   );
 }

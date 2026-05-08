@@ -15,7 +15,8 @@ export async function middleware(request: NextRequest) {
   const isPublic =
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith("/api/webhook") ||
-    pathname.startsWith("/api/portal");
+    pathname.startsWith("/api/portal") ||
+    pathname.match(/^\/api\/pendencias\/[^/]+\/responder$/) !== null;
 
   let supabaseResponse = NextResponse.next({ request });
 

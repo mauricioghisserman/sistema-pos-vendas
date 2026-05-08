@@ -117,10 +117,10 @@ export async function POST(request: Request) {
   const t0 = Date.now();
   const log = (msg: string) => console.log(`[upload] +${Date.now() - t0}ms ${msg}`);
 
-  const { token, itemId, fileName, mimeType, fileSize, data } = await request.json();
+  const { sessionToken, itemId, fileName, mimeType, fileSize, data } = await request.json();
   log(`recebido — fileName=${fileName} mimeType=${mimeType} fileSize=${fileSize}`);
 
-  if (!token || !itemId || !fileName || !mimeType || !data) {
+  if (!sessionToken || !itemId || !fileName || !mimeType || !data) {
     log("dados incompletos");
     return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
   }
@@ -129,18 +129,20 @@ export async function POST(request: Request) {
 
   const { data: parte } = await supabase
     .from("partes")
-    .select("id, processo_id")
-    .eq("token_acesso", token)
+    .select("id, tipo, processo_id")
+    .eq("session_token", sessionToken)
     .single();
 
-  if (!parte) { log("token inválido"); return NextResponse.json({ error: "Token inválido" }, { status: 403 }); }
+  if (!parte) { log("sessão inválida"); return NextResponse.json({ error: "Sessão inválida" }, { status: 403 }); }
+  if (parte.tipo === "corretor") { return NextResponse.json({ error: "Sem permissão" }, { status: 403 }); }
   log(`parte ok — id=${parte.id}`);
 
+  // Valida que o item pertence ao processo da parte (não restringe à parte específica)
   const { data: item } = await supabase
     .from("checklist_items")
-    .select("id, status")
+    .select("id, status, parte_id")
     .eq("id", itemId)
-    .eq("parte_id", parte.id)
+    .eq("processo_id", parte.processo_id)
     .single();
 
   if (!item) { log("item não encontrado"); return NextResponse.json({ error: "Item não encontrado" }, { status: 404 }); }

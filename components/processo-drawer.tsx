@@ -15,7 +15,26 @@ type Processo = {
   prazo_instrumento: string | null; prazo_registro: string | null;
   analistas: { nome: string; email: string } | null;
 };
-type Comissao = { corretor: string | null; imobiliaria: string | null; papel: string | null };
+type Comissao = { corretor: string | null; imobiliaria: string | null; papel: string | null }
+type Pendencia = {
+  id: string; tipo: string; titulo: string; descricao: string | null;
+  status: string; resposta_texto: string | null; motivo_reprovacao: string | null;
+  created_at: string;
+  partes: { nome: string; tipo: string } | null;
+}
+
+const TIPO_PENDENCIA_LABEL: Record<string, string> = {
+  documento: "Documento", esclarecimento: "Esclarecimento", informacao: "Informação",
+}
+const STATUS_PENDENCIA_COLOR: Record<string, string> = {
+  pendente: "text-yellow-700 bg-yellow-50",
+  respondida: "text-blue-700 bg-blue-50",
+  aprovada: "text-green-700 bg-green-50",
+  reprovada: "text-red-700 bg-red-50",
+}
+const STATUS_PENDENCIA_LABEL: Record<string, string> = {
+  pendente: "Pendente", respondida: "Respondida", aprovada: "Aprovada", reprovada: "Reprovada",
+};
 
 const STATUS_LABEL: Record<string, string> = {
   fechado_pelo_comercial: "Fechado pelo comercial",
@@ -260,8 +279,12 @@ function AdicionarParteForm({ processoId, onAdicionada }: {
   );
 }
 
-function ParteCard({ parte }: { parte: Parte }) {
-  const [copiado, setCopiado] = useState(false);
+function ParteCard({ parte, onUpdate }: { parte: Parte; onUpdate: (id: string, nome: string, email: string) => void }) {
+  const [copiado, setCopiado]   = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [nome, setNome]         = useState(parte.nome);
+  const [email, setEmail]       = useState(parte.email);
+  const [salvando, setSalvando] = useState(false);
 
   function copiarLink() {
     const url = `${window.location.origin}/portal?token=${parte.token_acesso}`;
@@ -271,48 +294,268 @@ function ParteCard({ parte }: { parte: Parte }) {
     });
   }
 
+  async function salvar() {
+    if (!nome.trim() || !email.trim()) return;
+    setSalvando(true);
+    const supabase = createClient();
+    await supabase.from("partes").update({ nome: nome.trim(), email: email.trim() }).eq("id", parte.id);
+    onUpdate(parte.id, nome.trim(), email.trim());
+    setSalvando(false);
+    setEditando(false);
+  }
+
+  const TIPO_LABEL_MAP: Record<string, string> = {
+    comprador: "Comprador", vendedor: "Vendedor", corretor: "Corretor",
+    advogado_comprador: "Advogado comprador", advogado_vendedor: "Advogado vendedor",
+  };
+
   return (
     <div className="border border-gray-100 rounded-lg px-3 py-2.5">
       <div className="flex items-center justify-between mb-0.5">
-        <span className="text-xs font-medium text-gray-500 capitalize">{{"comprador":"Comprador","vendedor":"Vendedor","corretor":"Corretor","advogado_comprador":"Advogado comprador","advogado_vendedor":"Advogado vendedor"}[parte.tipo] ?? parte.tipo}</span>
+        <span className="text-xs font-medium text-gray-500 capitalize">{TIPO_LABEL_MAP[parte.tipo] ?? parte.tipo}</span>
         <div className="flex items-center gap-2">
-          <button
-            onClick={copiarLink}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-            title="Copiar link do portal"
-          >
-            {copiado ? (
-              <>
-                <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          {!editando && (
+            <>
+              <button
+                onClick={copiarLink}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                title="Copiar link do portal"
+              >
+                {copiado ? (
+                  <><svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg><span className="text-green-500">Copiado!</span></>
+                ) : (
+                  <><svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg><span>Copiar link</span></>
+                )}
+              </button>
+              <a
+                href={`${typeof window !== "undefined" ? window.location.origin : ""}/portal?token=${parte.token_acesso}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                title="Abrir portal"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                <span>Abrir</span>
+              </a>
+              <button
+                onClick={() => setEditando(true)}
+                className="text-gray-300 hover:text-gray-600 transition-colors cursor-pointer"
+                title="Editar"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.243-6.243a2 2 0 1 1 2.828 2.828L11.828 13.828A4 4 0 0 1 9 15H7v-2a4 4 0 0 1 2.172-3.586z" />
                 </svg>
-                <span className="text-green-500">Copiado!</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                <span>Copiar link</span>
-              </>
-            )}
-          </button>
-          <a
-            href={`${typeof window !== "undefined" ? window.location.origin : ""}/portal?token=${parte.token_acesso}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
-            title="Abrir portal"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            <span>Abrir</span>
-          </a>
+              </button>
+            </>
+          )}
         </div>
       </div>
-      <p className="text-sm text-gray-900">{parte.nome}</p>
-      <p className="text-xs text-gray-400 truncate">{parte.email}</p>
+
+      {editando ? (
+        <div className="space-y-1.5 mt-1">
+          <input
+            type="text"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Nome"
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+          />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="E-mail"
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+          />
+          <div className="flex gap-2 pt-0.5">
+            <button
+              onClick={salvar}
+              disabled={salvando || !nome.trim() || !email.trim()}
+              className="text-xs px-3 py-1 bg-gray-900 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {salvando ? "Salvando..." : "Salvar"}
+            </button>
+            <button
+              onClick={() => { setEditando(false); setNome(parte.nome); setEmail(parte.email); }}
+              className="text-xs px-3 py-1 text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-gray-900">{parte.nome}</p>
+          <p className="text-xs text-gray-400 truncate">{parte.email}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PendenciasSection({
+  processoId, partes, pendencias, onCriada, onAvaliada, onRefresh,
+}: {
+  processoId: string;
+  partes: Parte[];
+  pendencias: Pendencia[];
+  onCriada: (p: Pendencia) => void;
+  onAvaliada: (id: string, status: string, motivo?: string) => void;
+  onRefresh: () => void;
+}) {
+  const [criando, setCriando]         = useState(false);
+  const [tipo, setTipo]               = useState("documento");
+  const [parteId, setParteId]         = useState("");
+  const [titulo, setTitulo]           = useState("");
+  const [descricao, setDescricao]     = useState("");
+  const [salvando, setSalvando]       = useState(false);
+  const [reprovandoId, setReprovandoId] = useState<string | null>(null);
+  const [motivoReprova, setMotivoReprova] = useState("");
+
+  const TIPO_PENDENCIA_ICONS: Record<string, string> = {
+    documento: "📄", esclarecimento: "💬", informacao: "ℹ️",
+  };
+
+  async function criar() {
+    if (!parteId || !titulo.trim()) return;
+    setSalvando(true);
+    const res = await fetch("/api/pendencias", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ processoId, parteId, tipo, titulo: titulo.trim(), descricao: descricao.trim() || null }),
+    });
+    if (res.ok) {
+      const nova = await res.json() as Pendencia;
+      onCriada(nova);
+      setCriando(false);
+      setTipo("documento"); setParteId(""); setTitulo(""); setDescricao("");
+    }
+    setSalvando(false);
+  }
+
+  async function avaliar(id: string, status: "aprovada" | "reprovada", motivo?: string) {
+    const res = await fetch(`/api/pendencias/${id}/avaliar`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, motivo_reprovacao: motivo }),
+    });
+    if (res.ok) {
+      onAvaliada(id, status, motivo);
+      setReprovandoId(null);
+      setMotivoReprova("");
+    }
+  }
+
+  const partesDisponiveis = partes.filter((p) => p.tipo !== "corretor");
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Pendências</h3>
+          <button onClick={onRefresh} title="Atualizar" className="text-gray-300 hover:text-gray-500 transition-colors cursor-pointer">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </button>
+        </div>
+        <button
+          onClick={() => setCriando((v) => !v)}
+          className="text-xs text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+        >
+          {criando ? "Cancelar" : "+ Nova"}
+        </button>
+      </div>
+
+      {criando && (
+        <div className="border border-gray-100 rounded-lg px-3 py-3 space-y-2 mb-2">
+          <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:border-gray-400">
+            <option value="documento">📄 Documento</option>
+            <option value="esclarecimento">💬 Esclarecimento</option>
+            <option value="informacao">ℹ️ Informação</option>
+          </select>
+          <select value={parteId} onChange={(e) => setParteId(e.target.value)} className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:border-gray-400">
+            <option value="">Selecionar parte...</option>
+            {partesDisponiveis.map((p) => (
+              <option key={p.id} value={p.id}>{p.nome}</option>
+            ))}
+          </select>
+          <input
+            type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)}
+            placeholder="Título da pendência"
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400"
+          />
+          <textarea
+            value={descricao} onChange={(e) => setDescricao(e.target.value)}
+            placeholder="Descrição (opcional)"
+            rows={2}
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400 resize-none"
+          />
+          <div className="flex gap-2">
+            <button onClick={criar} disabled={salvando || !parteId || !titulo.trim()} className="text-xs px-3 py-1 bg-gray-900 text-white rounded hover:bg-gray-700 disabled:opacity-50 cursor-pointer">
+              {salvando ? "Criando..." : "Criar"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pendencias.length === 0 && !criando && (
+        <p className="text-xs text-gray-400">Nenhuma pendência criada.</p>
+      )}
+
+      <div className="space-y-2">
+        {pendencias.map((p) => (
+          <div key={p.id} className="border border-gray-100 rounded-lg px-3 py-2.5 space-y-1.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-800 leading-snug">
+                  {TIPO_PENDENCIA_ICONS[p.tipo]} {p.titulo}
+                </p>
+                {p.partes && (
+                  <p className="text-[10px] text-gray-400">{p.partes.nome}</p>
+                )}
+              </div>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${STATUS_PENDENCIA_COLOR[p.status]}`}>
+                {STATUS_PENDENCIA_LABEL[p.status]}
+              </span>
+            </div>
+
+            {p.descricao && <p className="text-[11px] text-gray-500">{p.descricao}</p>}
+
+            {p.resposta_texto && (
+              <div className="bg-blue-50 rounded px-2 py-1.5">
+                <p className="text-[10px] text-blue-500 font-medium mb-0.5">Resposta</p>
+                <p className="text-[11px] text-blue-800">{p.resposta_texto}</p>
+              </div>
+            )}
+
+            {p.status === "respondida" && (
+              reprovandoId === p.id ? (
+                <div className="space-y-1.5">
+                  <textarea
+                    value={motivoReprova} onChange={(e) => setMotivoReprova(e.target.value)}
+                    placeholder="Motivo da reprovação"
+                    rows={2}
+                    className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-gray-400 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => avaliar(p.id, "reprovada", motivoReprova)} disabled={!motivoReprova.trim()} className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 cursor-pointer">Reprovar</button>
+                    <button onClick={() => { setReprovandoId(null); setMotivoReprova(""); }} className="text-xs px-2 py-1 text-gray-400 hover:text-gray-600 cursor-pointer">Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={() => avaliar(p.id, "aprovada")} className="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 cursor-pointer">Aprovar</button>
+                  <button onClick={() => setReprovandoId(p.id)} className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 cursor-pointer">Reprovar</button>
+                </div>
+              )
+            )}
+
+            {p.motivo_reprovacao && (
+              <p className="text-[11px] text-red-600 bg-red-50 rounded px-2 py-1"><strong>Motivo:</strong> {p.motivo_reprovacao}</p>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -324,7 +567,18 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
   const [partes, setPartes] = useState<Parte[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [comissoes, setComissoes] = useState<Comissao[]>([]);
+  const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [loading, setLoading] = useState(false);
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<"idle" | "ok" | "erro">("idle");
+
+  function refreshPendencias() {
+    if (!processoId) return;
+    fetch(`/api/pendencias?processoId=${processoId}`)
+      .then((r) => r.json())
+      .then((pend) => setPendencias(Array.isArray(pend) ? pend : []))
+      .catch(() => {});
+  }
 
   useEffect(() => {
     if (!processoId) return;
@@ -336,7 +590,8 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       supabase.from("partes").select("id,tipo,nome,email,token_acesso").eq("processo_id", processoId).order("tipo"),
       supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido").eq("processo_id", processoId).order("ordem"),
       fetch(`/api/processos/comissoes?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
-    ]).then(([p, pa, ch, cm]) => {
+      fetch(`/api/pendencias?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
+    ]).then(([p, pa, ch, cm, pend]) => {
       const analistas = p.data?.analistas;
       setProcesso({
         ...p.data!,
@@ -345,6 +600,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       setPartes(pa.data ?? []);
       setChecklist(ch.data ?? []);
       setComissoes(Array.isArray(cm) ? cm : []);
+      setPendencias(Array.isArray(pend) ? pend : []);
       setLoading(false);
     });
   }, [processoId]);
@@ -357,6 +613,25 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
   }, [onClose]);
 
   const open = !!processoId;
+
+  async function enviarEmailInicio() {
+    if (!processo || enviandoEmail) return;
+    setEnviandoEmail(true);
+    setEmailStatus("idle");
+    try {
+      const res = await fetch("/api/processos/enviar-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ processoId: processo.id }),
+      });
+      setEmailStatus(res.ok ? "ok" : "erro");
+    } catch {
+      setEmailStatus("erro");
+    } finally {
+      setEnviandoEmail(false);
+      setTimeout(() => setEmailStatus("idle"), 4000);
+    }
+  }
 
   // Agrupa checklist por parte
   const grupos: { label: string; tipo: string; parteId: string | null; items: ChecklistItem[] }[] = [];
@@ -404,6 +679,18 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">{aprovados}/{checklist.length} aprovados</span>
+                <button
+                  onClick={enviarEmailInicio}
+                  disabled={enviandoEmail}
+                  title="Enviar email de início para todas as partes"
+                  className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
+                    emailStatus === "ok" ? "border-green-300 text-green-700 bg-green-50" :
+                    emailStatus === "erro" ? "border-red-300 text-red-700 bg-red-50" :
+                    "border-gray-200 text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {enviandoEmail ? "Enviando..." : emailStatus === "ok" ? "Enviado ✓" : emailStatus === "erro" ? "Erro ao enviar" : "Enviar email"}
+                </button>
                 <a href={`https://app.hubspot.com/contacts/23482022/record/0-3/${processo.hubspot_deal_id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors">
                   HubSpot ↗
                 </a>
@@ -464,7 +751,13 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Partes</h3>
                   <div className="space-y-2">
                     {partes.map((parte) => (
-                      <ParteCard key={parte.id} parte={parte} />
+                      <ParteCard
+                        key={parte.id}
+                        parte={parte}
+                        onUpdate={(id, nome, email) =>
+                          setPartes((prev) => prev.map((p) => p.id === id ? { ...p, nome, email } : p))
+                        }
+                      />
                     ))}
                   </div>
                   <AdicionarParteForm
@@ -475,6 +768,17 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                     }}
                   />
                 </div>
+
+                <PendenciasSection
+                  processoId={processo.id}
+                  partes={partes}
+                  pendencias={pendencias}
+                  onCriada={(p) => setPendencias((prev) => [p, ...prev])}
+                  onAvaliada={(id, status, motivo) =>
+                    setPendencias((prev) => prev.map((p) => p.id === id ? { ...p, status, motivo_reprovacao: motivo ?? null } : p))
+                  }
+                  onRefresh={refreshPendencias}
+                />
 
                 {processo.analistas && (
                   <div>
