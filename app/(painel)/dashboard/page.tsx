@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ProcessoDrawer from "@/components/processo-drawer";
+import { createClient } from "@/lib/supabase/client";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -169,12 +170,17 @@ function PrazoGroup({ titulo, items, onOpenProcesso }: {
 // ── Página ───────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [tasks, setTasks]         = useState<Task[]>([]);
-  const [processos, setProcessos] = useState<ProcessoPrazo[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [tasks, setTasks]           = useState<Task[]>([]);
+  const [processos, setProcessos]   = useState<ProcessoPrazo[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [userEmail, setUserEmail]   = useState<string | null>(null);
+  const [filtro, setFiltro]         = useState<"minha" | "geral">("minha");
 
   useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
+
     Promise.all([
       fetch("/api/tasks?all=true").then((r) => r.json()),
       fetch("/api/dashboard").then((r) => r.json()),
@@ -198,13 +204,42 @@ export default function DashboardPage() {
   const saudacao = hoje.getHours() < 12 ? "Bom dia" : hoje.getHours() < 18 ? "Boa tarde" : "Boa noite";
   const dataFmt = hoje.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
+  // IDs dos processos do analista logado
+  const meusProcessoIds = new Set(
+    processos.filter((p) => p.analistas?.email === userEmail).map((p) => p.id)
+  );
+
+  const processosFiltrados = filtro === "minha"
+    ? processos.filter((p) => meusProcessoIds.has(p.id))
+    : processos;
+
+  const tasksFiltradas = filtro === "minha"
+    ? tasks.filter((t) => meusProcessoIds.has(t.processo_id))
+    : tasks;
+
   return (
     <>
       <div className="flex-1 overflow-hidden flex flex-col px-8 py-6">
         {/* Header */}
-        <div className="mb-6 shrink-0">
-          <h1 className="text-xl font-semibold text-gray-900">{saudacao}</h1>
-          <p className="text-sm text-gray-400 capitalize">{dataFmt}</p>
+        <div className="mb-6 shrink-0 flex items-end justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">{saudacao}</h1>
+            <p className="text-sm text-gray-400 capitalize">{dataFmt}</p>
+          </div>
+          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setFiltro("minha")}
+              className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${filtro === "minha" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Minha visão
+            </button>
+            <button
+              onClick={() => setFiltro("geral")}
+              className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${filtro === "geral" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              Geral
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -217,9 +252,9 @@ export default function DashboardPage() {
             <div className="flex-1 overflow-y-auto min-w-0">
               <div className="flex items-baseline gap-2 mb-4">
                 <h2 className="text-sm font-semibold text-gray-700">Tasks</h2>
-                <span className="text-xs text-gray-400">{tasks.length} aberta{tasks.length !== 1 ? "s" : ""}</span>
+                <span className="text-xs text-gray-400">{tasksFiltradas.length} aberta{tasksFiltradas.length !== 1 ? "s" : ""}</span>
               </div>
-              <TasksPanel tasks={tasks} onToggle={handleToggleTask} />
+              <TasksPanel tasks={tasksFiltradas} onToggle={handleToggleTask} />
             </div>
 
             {/* Divisor */}
@@ -232,7 +267,7 @@ export default function DashboardPage() {
               </div>
               <PrazoGroup
                 titulo=""
-                items={processos
+                items={processosFiltrados
                   .filter((p) => p.prazo_entrega_doc && ["fechado_pelo_comercial","pos_vendas_iniciado","documentacao_pendente"].includes(p.status) && daysDiff(p.prazo_entrega_doc) <= 14)
                   .map((p) => ({ processo: p, dateStr: p.prazo_entrega_doc!, diff: daysDiff(p.prazo_entrega_doc!) }))}
                 onOpenProcesso={setSelectedId}
@@ -249,7 +284,7 @@ export default function DashboardPage() {
               </div>
               <PrazoGroup
                 titulo=""
-                items={processos
+                items={processosFiltrados
                   .filter((p) => p.prazo_instrumento && ["fechado_pelo_comercial","pos_vendas_iniciado","documentacao_pendente","instrumento_definitivo"].includes(p.status) && daysDiff(p.prazo_instrumento) <= 14)
                   .map((p) => ({ processo: p, dateStr: p.prazo_instrumento!, diff: daysDiff(p.prazo_instrumento!) }))}
                 onOpenProcesso={setSelectedId}
