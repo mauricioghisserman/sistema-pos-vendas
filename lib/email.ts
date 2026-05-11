@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResend() { return new Resend(process.env.RESEND_API_KEY); }
 const FROM = process.env.RESEND_FROM ?? "Pilar <noreply@soupilar.com.br>";
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pos-vendas.onrender.com";
 
@@ -17,7 +17,7 @@ export async function enviarMagicLink({
 }) {
   const link = `${BASE_URL}/portal?processo=${processoToken}&magic=${magicToken}`;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: email,
     subject: "Seu acesso ao portal Pilar",
@@ -45,7 +45,7 @@ export async function enviarEmailPendencia({
     documento: "envio de documento", esclarecimento: "esclarecimento", informacao: "informação",
   };
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: email,
     subject: `Nova pendência — ${processoTitulo}`,
@@ -86,7 +86,7 @@ export async function enviarEmailInicio({
     ? new Date(prazo + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
     : null;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to: email,
     subject: `Documentação necessária — ${processoTitulo}`,
