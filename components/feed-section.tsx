@@ -34,8 +34,10 @@ function relativeTime(ts: number): string {
 function EngagementCard({ item }: { item: FeedItem }) {
   const [expanded, setExpanded] = useState(false);
   const corpo = item.corpo ?? "";
-  const preview = corpo.length > 220 ? corpo.slice(0, 220) + "…" : corpo;
-  const hasMore = corpo.length > 220;
+  const isHtml = /<[a-z][\s\S]*>/i.test(corpo);
+
+  // Para HTML: colapsa via max-height; para texto plano: fatia caracteres
+  const COLLAPSE_PX = 160;
 
   return (
     <div className="py-3 border-b border-gray-100 last:border-0">
@@ -48,21 +50,34 @@ function EngagementCard({ item }: { item: FeedItem }) {
             )}
             <span className="text-[11px] text-gray-400 shrink-0 ml-auto">{relativeTime(item.timestamp)}</span>
           </div>
-          {corpo && (
-            <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-              {expanded ? corpo : preview}
-            </p>
-          )}
-          {!corpo && (
+
+          {corpo ? (
+            <>
+              <div
+                className={`overflow-hidden transition-all ${!expanded ? "relative" : ""}`}
+                style={!expanded ? { maxHeight: COLLAPSE_PX } : undefined}
+              >
+                {isHtml ? (
+                  <div
+                    className="text-xs text-gray-600 leading-relaxed feed-html"
+                    dangerouslySetInnerHTML={{ __html: corpo }}
+                  />
+                ) : (
+                  <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">{corpo}</p>
+                )}
+                {!expanded && (
+                  <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+                )}
+              </div>
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="text-[11px] text-blue-500 hover:text-blue-700 mt-1 cursor-pointer"
+              >
+                {expanded ? "Ver menos" : "Ver mais"}
+              </button>
+            </>
+          ) : (
             <p className="text-xs text-gray-400 italic">Sem conteúdo</p>
-          )}
-          {hasMore && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="text-[11px] text-blue-500 hover:text-blue-700 mt-1 cursor-pointer"
-            >
-              {expanded ? "Ver menos" : "Ver mais"}
-            </button>
           )}
         </div>
       </div>

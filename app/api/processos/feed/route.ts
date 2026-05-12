@@ -11,21 +11,6 @@ export type FeedItem = {
   timestamp: number;
 };
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 async function resolveOwners(ids: number[]): Promise<Record<number, string>> {
   const unique = [...new Set(ids)];
   const entries = await Promise.all(
@@ -60,9 +45,7 @@ async function getEngagements(objectType: "deal" | "ticket", objectId: string): 
     .map((r) => ({
       id: String(r.engagement.id),
       tipo: r.engagement.type,
-      corpo: r.metadata.body
-        ? stripHtml(r.metadata.body)
-        : (r.metadata.subject ?? r.metadata.text ?? null),
+      corpo: r.metadata.body ?? r.metadata.subject ?? r.metadata.text ?? null,
       autorNome: ownerMap[r.engagement.createdBy] ?? null,
       timestamp: r.engagement.timestamp,
     }))
