@@ -5,4 +5,5 @@ export const ANALISTAS_AUTORIZADOS = [
   "bruna.dalla@soupilar.com.br",
   "julieth.sacramento@soupilar.com.br",
   "camila.favalli@soupilar.com.br",
+  "jose.edelstein@soupilar.com.br",
 ];
