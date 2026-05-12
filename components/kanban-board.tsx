@@ -12,13 +12,14 @@ import { createClient } from "@/lib/supabase/client";
 type Props = {
   stages: typeof STAGES;
   owners: string[];
+  defaultOwner?: string;
 };
 
-export default function KanbanBoard({ stages, owners }: Props) {
+export default function KanbanBoard({ stages, owners, defaultOwner = "" }: Props) {
   const searchParams                       = useSearchParams();
   const [search, setSearch]               = useState("");
   const [debouncedSearch, setDebounced]   = useState("");
-  const [selectedOwner, setSelectedOwner] = useState("");
+  const [selectedOwner, setSelectedOwner] = useState(defaultOwner);
   const [selectedId, setSelectedId]       = useState<string | null>(() => searchParams.get("open"));
   const [draggingId, setDraggingId]       = useState<string | null>(null);
   const [overStage, setOverStage]         = useState<string | null>(null);

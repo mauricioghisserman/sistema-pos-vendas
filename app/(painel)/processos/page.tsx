@@ -32,18 +32,28 @@ export type Processo = {
 export default async function ProcessosPage() {
   const supabase = await createClient();
 
-  const { data: ownersData } = await supabase
-    .from("processos")
-    .select("hubspot_owner_nome")
-    .not("hubspot_owner_nome", "is", null)
-    .order("hubspot_owner_nome");
+  const [{ data: ownersData }, { data: { user } }] = await Promise.all([
+    supabase.from("processos").select("hubspot_owner_nome").not("hubspot_owner_nome", "is", null),
+    supabase.auth.getUser(),
+  ]);
 
   const owners = [...new Set((ownersData ?? []).map((o) => o.hubspot_owner_nome as string))].sort();
+
+  // Nome do analista logado para pré-filtrar os próprios processos
+  let defaultOwner = "";
+  if (user?.email) {
+    const { data: analista } = await supabase
+      .from("analistas")
+      .select("nome")
+      .eq("email", user.email)
+      .single();
+    defaultOwner = analista?.nome ?? "";
+  }
 
   return (
     <div className="flex flex-col h-full">
       <Suspense>
-        <KanbanBoard stages={STAGES} owners={owners} />
+        <KanbanBoard stages={STAGES} owners={owners} defaultOwner={defaultOwner} />
       </Suspense>
     </div>
   );

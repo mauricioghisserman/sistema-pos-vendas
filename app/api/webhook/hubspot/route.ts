@@ -23,6 +23,85 @@ async function resolverCcvUrl(fileId: string | null): Promise<string | null> {
   return data.url ?? null;
 }
 
+// Doc name (HubSpot IA) → nome(s) do item no checklist
+// CNH substitui CPF e RG
+const DOC_CHECKLIST: Record<string, string[]> = {
+  "cpf":                         ["CPF ou CNH"],
+  "rg":                          ["RG"],
+  "cnh":                         ["CPF ou CNH", "RG"],
+  "comprovante de endereço":     ["Comprovante de Endereço"],
+  "certidão de estado civil":    ["Comprovante de Estado Civil"],
+  "comprovante de estado civil": ["Comprovante de Estado Civil"],
+  "iptu":                        ["IPTU"],
+  "matrícula":                   ["Matrícula do Imóvel"],
+};
+
+type ParteIA  = { nome: string | null; parte: string; documentos: { doc: string }[] };
+type ParteRow = { id: string; tipo: string; nome: string };
+type ChecklistRow = { id: string; nome: string; parte_id: string | null; categoria: string };
+
+async function marcarDocsEncontrados(
+  supabase: ReturnType<typeof createServiceClient>,
+  processoId: string,
+  partes: ParteRow[],
+  iaChecklistRaw: string
+) {
+  let iaChecklist: ParteIA[];
+  try { iaChecklist = JSON.parse(iaChecklistRaw); } catch { return; }
+
+  const { data: checklistItems } = await supabase
+    .from("checklist_items")
+    .select("id, nome, parte_id, categoria")
+    .eq("processo_id", processoId) as { data: ChecklistRow[] | null };
+  if (!checklistItems) return;
+
+  const idsParaMarcar: string[] = [];
+
+  for (const entry of iaChecklist) {
+    const tipoKey = entry.parte.toLowerCase();
+    const tipo = tipoKey === "imóvel" || tipoKey === "imovel" ? "imovel"
+               : tipoKey === "vendedor" ? "vendedor"
+               : tipoKey === "comprador" ? "comprador"
+               : null;
+    if (!tipo) continue;
+
+    for (const { doc } of entry.documentos) {
+      const nomesDocs = DOC_CHECKLIST[doc.toLowerCase()];
+      if (!nomesDocs) continue;
+
+      for (const nomeDoc of nomesDocs) {
+        if (tipo === "imovel") {
+          const item = checklistItems.find(
+            (c) => !c.parte_id && c.categoria === "imovel" &&
+                   c.nome.toLowerCase() === nomeDoc.toLowerCase()
+          );
+          if (item && !idsParaMarcar.includes(item.id)) idsParaMarcar.push(item.id);
+        } else {
+          // Tenta casar pelo nome; fallback: primeira parte do tipo
+          const nomeIA = (entry.nome ?? "").toUpperCase();
+          const parte = partes.find(
+            (p) => p.tipo === tipo && p.nome.toUpperCase() === nomeIA
+          );
+          if (!parte) continue;
+
+          const item = checklistItems.find(
+            (c) => c.parte_id === parte.id &&
+                   c.nome.toLowerCase() === nomeDoc.toLowerCase()
+          );
+          if (item && !idsParaMarcar.includes(item.id)) idsParaMarcar.push(item.id);
+        }
+      }
+    }
+  }
+
+  if (idsParaMarcar.length > 0) {
+    await supabase
+      .from("checklist_items")
+      .update({ status: "enviado" })
+      .in("id", idsParaMarcar);
+  }
+}
+
 async function processEventos(eventos: Record<string, unknown>[]) {
   const supabase = createServiceClient();
 
@@ -32,7 +111,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
 
     // Busca os dados completos do deal no HubSpot
     const dealRes = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv`,
+      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes`,
       { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
     );
 
@@ -170,7 +249,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
         const { data: partesInseridas } = await supabase
           .from("partes")
           .insert(partesParaInserir)
-          .select("id, tipo");
+          .select("id, tipo, nome");
 
         // Cria checklist a partir do template
         const { data: template } = await supabase
@@ -194,6 +273,16 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           }
           if (checklistItems.length > 0) {
             await supabase.from("checklist_items").insert(checklistItems);
+
+            // Marca itens já encontrados pela IA do HubSpot
+            if (props.ia_checklist_das_partes && partesInseridas) {
+              await marcarDocsEncontrados(
+                supabase,
+                processoId,
+                partesInseridas as ParteRow[],
+                props.ia_checklist_das_partes
+              );
+            }
           }
         }
       }
