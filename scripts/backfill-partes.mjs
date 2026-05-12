@@ -85,7 +85,8 @@ async function main() {
   // 1. Processos sem partes
   const { data: processos } = await supabase
     .from("processos")
-    .select("id, hubspot_deal_id, titulo");
+    .select("id, hubspot_deal_id, titulo")
+    .eq("status", "fechado_pelo_comercial");
 
   if (!processos?.length) { console.log("Nenhum processo encontrado."); return; }
 

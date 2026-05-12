@@ -12,6 +12,17 @@ const STAGE_MAP: Record<string, string> = {
 };
 
 
+async function resolverCcvUrl(fileId: string | null): Promise<string | null> {
+  if (!fileId) return null;
+  const res = await fetch(
+    `https://api.hubapi.com/files/v3/files/${fileId}`,
+    { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.url ?? null;
+}
+
 async function processEventos(eventos: Record<string, unknown>[]) {
   const supabase = createServiceClient();
 
@@ -21,7 +32,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
 
     // Busca os dados completos do deal no HubSpot
     const dealRes = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial`,
+      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv`,
       { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
     );
 
@@ -37,6 +48,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
 
     const titulo = props.dealname ?? `Deal ${dealId}`;
     const endereco = [props.bairro, props.cidade].filter(Boolean).join(", ");
+    const ccv_url = await resolverCcvUrl(props.anexo_ccv ?? null);
 
     // Busca nome do responsável no HubSpot
     let hubspot_owner_nome: string | null = null;
@@ -79,6 +91,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           observacoes: props.pv__observacoes_pos_vendas ?? null,
           hubspot_owner_nome,
           hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
+          ccv_url,
         })
         .select("id")
         .single();
@@ -202,6 +215,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           observacoes: props.pv__observacoes_pos_vendas ?? null,
           hubspot_owner_nome,
           hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
+          ...(ccv_url !== null ? { ccv_url } : {}),
         })
         .eq("id", processoId);
     }

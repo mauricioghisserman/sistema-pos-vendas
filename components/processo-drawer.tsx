@@ -5,12 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import ChecklistSection from "@/components/checklist-section";
 import TasksSection from "@/components/tasks-section";
 import ResumoSection from "@/components/resumo-section";
+import FeedSection from "@/components/feed-section";
 
 type Parte = { id: string; tipo: string; nome: string; email: string; token_acesso: string };
 type ChecklistItem = { id: string; nome: string; status: string; categoria: string; parte_id: string | null; obrigatorio: boolean; motivo_reprovacao: string | null; ordem: number; ia_valido: boolean | null };
 type Processo = {
   id: string; titulo: string; status: string; hubspot_deal_id: string;
-  observacoes: string | null;
+  observacoes: string | null; ccv_url: string | null;
   prazo_entrega_doc: string | null; prazo_assinatura: string | null;
   prazo_instrumento: string | null; prazo_registro: string | null;
   analistas: { nome: string; email: string } | null;
@@ -586,7 +587,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
     const supabase = createClient();
 
     Promise.all([
-      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,analistas(nome,email)").eq("id", processoId).single(),
+      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,ccv_url,analistas(nome,email)").eq("id", processoId).single(),
       supabase.from("partes").select("id,tipo,nome,email,token_acesso").eq("processo_id", processoId).order("tipo"),
       supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido").eq("processo_id", processoId).order("ordem"),
       fetch(`/api/processos/comissoes?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
@@ -659,7 +660,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       />
 
       {/* Drawer */}
-      <div className={`fixed top-0 right-0 h-full w-[900px] max-w-full bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
+      <div className={`fixed top-0 right-0 h-full w-[1150px] max-w-full bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
         {loading || !processo ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
@@ -691,6 +692,14 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                 >
                   {enviandoEmail ? "Enviando..." : emailStatus === "ok" ? "Enviado ✓" : emailStatus === "erro" ? "Erro ao enviar" : "Enviar email"}
                 </button>
+                {processo.ccv_url && (
+                  <a href={processo.ccv_url} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                    </svg>
+                    CCV
+                  </a>
+                )}
                 <a href={`https://app.hubspot.com/contacts/23482022/record/0-3/${processo.hubspot_deal_id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors">
                   HubSpot ↗
                 </a>
@@ -700,11 +709,16 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
             {/* Body */}
             <div className="flex flex-1 overflow-hidden">
               {/* Checklist */}
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="w-[340px] shrink-0 overflow-y-auto px-5 py-5 space-y-4">
                 {grupos.map((grupo) => (
                   <ChecklistSection key={grupo.parteId ?? "imovel"} label={grupo.label} tipo={grupo.tipo} items={grupo.items} processoId={processo.id} parteId={grupo.parteId} />
                 ))}
                 {grupos.length === 0 && <p className="text-sm text-gray-400 text-center py-16">Nenhum item no checklist.</p>}
+              </div>
+
+              {/* Feed HubSpot */}
+              <div className="flex-1 border-l border-gray-100 overflow-hidden">
+                <FeedSection processoId={processo.id} />
               </div>
 
               {/* Sidebar */}

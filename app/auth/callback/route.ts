@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
+import { ANALISTAS_AUTORIZADOS } from "@/lib/analistas-autorizados";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -35,17 +36,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // Verifica se o email está na tabela de analistas (whitelist)
-  const email = sessionData.user?.email;
-  const { createServiceClient } = await import("@/lib/supabase/server");
-  const serviceClient = createServiceClient();
-  const { data: analista } = await serviceClient
-    .from("analistas")
-    .select("id")
-    .eq("email", email)
-    .single();
-
-  if (!analista) {
+  const email = sessionData.user?.email ?? "";
+  if (!ANALISTAS_AUTORIZADOS.includes(email)) {
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/login?error=acesso_negado`);
   }

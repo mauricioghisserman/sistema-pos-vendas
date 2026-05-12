@@ -22,6 +22,7 @@ export type Processo = {
   prazo_instrumento: string | null;
   hubspot_deal_id: string;
   hubspot_owner_nome: string | null;
+  ccv_url: string | null;
   analistas: { nome: string; email: string } | null;
   open_tasks_count: number;
   docs_total: number;

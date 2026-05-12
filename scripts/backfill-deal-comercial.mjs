@@ -25,7 +25,8 @@ async function main() {
   const { data: processos } = await supabase
     .from("processos")
     .select("id, hubspot_deal_id, hubspot_deal_id_comercial")
-    .is("hubspot_deal_id_comercial", null);
+    .is("hubspot_deal_id_comercial", null)
+    .eq("status", "fechado_pelo_comercial");
 
   if (!processos?.length) { console.log("Nada a fazer."); return; }
   console.log(`Processos sem deal_id_comercial: ${processos.length}`);

@@ -262,7 +262,7 @@ function ChecklistItem({ item, processoId }: { item: Item; processoId: string })
           {/* Nome + badge IA + status */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className={`text-sm ${aprovado ? "line-through text-gray-400" : "text-gray-800"}`}>
+              <span className={`text-xs ${aprovado ? "line-through text-gray-400" : "text-gray-800"}`}>
                 {item.nome}
               </span>
               {(enviado || aprovado || reprovado) && iaValido === true && (
@@ -406,7 +406,7 @@ export default function ChecklistSection({ label, tipo, items: initialItems, pro
             {label.split(" — ")[0]}
           </span>
           {label.includes(" — ") && (
-            <span className="text-sm font-medium text-gray-800">{label.split(" — ")[1]}</span>
+            <span className="text-xs font-medium text-gray-800">{label.split(" — ")[1]}</span>
           )}
         </div>
         <span className={`text-xs font-medium ${allDone ? "text-green-500" : "text-gray-400"}`}>

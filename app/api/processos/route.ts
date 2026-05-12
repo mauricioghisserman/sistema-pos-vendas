@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("processos")
-    .select("id, titulo, status, prazo_entrega_doc, prazo_instrumento, hubspot_deal_id, hubspot_owner_nome, analistas(nome, email)")
+    .select("id, titulo, status, prazo_entrega_doc, prazo_instrumento, hubspot_deal_id, hubspot_owner_nome, ccv_url, analistas(nome, email)")
     .order(ord.col, { ascending: ord.asc, nullsFirst: ord.nullsFirst ?? true })
     .range(page * LIMIT, (page + 1) * LIMIT - 1);
 
