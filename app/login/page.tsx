@@ -24,7 +24,7 @@ function LoginForm() {
     });
     setLoading(false);
     if (otpError) {
-      setFormError("Erro ao enviar o link. Tente novamente.");
+      setFormError(otpError.message);
     } else {
       setSent(true);
     }
