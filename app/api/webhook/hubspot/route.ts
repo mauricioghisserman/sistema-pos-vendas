@@ -109,6 +109,30 @@ async function processEventos(eventos: Record<string, unknown>[]) {
     const dealId = String(evento.objectId ?? evento.dealId ?? evento.hs_object_id ?? "");
     if (!dealId) continue;
 
+    // Deleção: remove o processo e todos os dados associados
+    if (evento.subscriptionType === "deal.deletion") {
+      const { data: proc } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("hubspot_deal_id", dealId)
+        .single();
+      if (!proc) continue;
+      const pid = proc.id;
+      const { data: partes } = await supabase.from("partes").select("id").eq("processo_id", pid);
+      const parteIds = (partes ?? []).map((p: { id: string }) => p.id);
+      if (parteIds.length > 0) {
+        await supabase.from("checklist_items").delete().in("parte_id", parteIds);
+      }
+      await supabase.from("checklist_items").delete().eq("processo_id", pid);
+      await supabase.from("documentos").delete().eq("processo_id", pid);
+      await supabase.from("tasks").delete().eq("processo_id", pid);
+      await supabase.from("pendencias").delete().eq("processo_id", pid);
+      await supabase.from("atividades").delete().eq("processo_id", pid);
+      await supabase.from("partes").delete().eq("processo_id", pid);
+      await supabase.from("processos").delete().eq("id", pid);
+      continue;
+    }
+
     // Busca os dados completos do deal no HubSpot
     const dealRes = await fetch(
       `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes`,
