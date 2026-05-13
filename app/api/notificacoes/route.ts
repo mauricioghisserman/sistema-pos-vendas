@@ -1,8 +1,16 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const supabase = createServiceClient();
+  const [supabase, authClient] = [createServiceClient(), await createClient()];
+  const { data: { user } } = await authClient.auth.getUser();
+  const email = user?.email ?? "";
+
+  // Busca notificações lidas pelo analista atual
+  const { data: lidasData } = email
+    ? await supabase.from("notificacoes_lidas").select("tipo, ref_id").eq("analista_email", email)
+    : { data: [] };
+  const lidasSet = new Set((lidasData ?? []).map((l: { tipo: string; ref_id: string }) => `${l.tipo}:${l.ref_id}`));
 
   // Busca pendências respondidas e checklist items enviados em paralelo
   const [{ data: pendencias }, { data: itens }] = await Promise.all([
@@ -58,6 +66,7 @@ export async function GET() {
     processoId: p.processo_id,
     processoTitulo: processoMap[p.processo_id] ?? "",
     at: p.created_at,
+    lida: lidasSet.has(`pendencia_respondida:${p.id}`),
   }));
 
   const notifItens = (itens ?? []).map((i: { id: string; nome: string; processo_id: string; parte_id: string; updated_at: string }) => ({
@@ -71,11 +80,13 @@ export async function GET() {
     processoId: i.processo_id,
     processoTitulo: processoMap[i.processo_id] ?? "",
     at: i.updated_at,
+    lida: lidasSet.has(`documento_enviado:${i.id}`),
   }));
 
-  const all = [...notifPendencias, ...notifItens].sort(
-    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
-  );
+  const all = [...notifPendencias, ...notifItens]
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
-  return NextResponse.json({ total: all.length, itens: all });
+  const totalNaoLidas = all.filter((n) => !n.lida).length;
+
+  return NextResponse.json({ total: totalNaoLidas, itens: all });
 }

@@ -15,6 +15,7 @@ type Notif = {
   processoId: string;
   processoTitulo: string;
   at: string;
+  lida: boolean;
 };
 
 const SUBTIPO_LABEL: Record<string, string> = {
@@ -52,10 +53,8 @@ export default function TopBar() {
     setNotifs(json.itens);
   }
 
-  // Fetch inicial
   useEffect(() => { fetchNotifs(); }, []);
 
-  // Supabase realtime
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -66,7 +65,6 @@ export default function TopBar() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Fecha ao clicar fora
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
@@ -77,10 +75,36 @@ export default function TopBar() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  function handleNotifClick(notif: Notif) {
+  async function marcarLida(notif: Notif) {
+    if (notif.lida) return;
+    await fetch("/api/notificacoes/ler", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo: notif.tipo, refId: notif.refId }),
+    });
+    setNotifs((prev) => prev.map((n) => n.id === notif.id ? { ...n, lida: true } : n));
+    setTotal((prev) => Math.max(0, prev - 1));
+  }
+
+  async function handleNotifClick(notif: Notif) {
     setOpen(false);
+    await marcarLida(notif);
     router.push(`/processos?open=${notif.processoId}`);
   }
+
+  async function marcarTodasLidas() {
+    const naoLidas = notifs.filter((n) => !n.lida);
+    if (naoLidas.length === 0) return;
+    await fetch("/api/notificacoes/ler", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true, itens: naoLidas.map((n) => ({ tipo: n.tipo, refId: n.refId })) }),
+    });
+    setNotifs((prev) => prev.map((n) => ({ ...n, lida: true })));
+    setTotal(0);
+  }
+
+  const temNaoLidas = notifs.some((n) => !n.lida);
 
   return (
     <div className="h-10 border-b border-gray-100 flex items-center justify-end px-4 bg-white shrink-0">
@@ -102,33 +126,51 @@ export default function TopBar() {
 
         {open && (
           <div className="absolute right-0 top-full mt-1 w-80 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-gray-50">
+            <div className="px-4 py-2.5 border-b border-gray-50 flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notificações</span>
+              {temNaoLidas && (
+                <button
+                  onClick={marcarTodasLidas}
+                  className="text-[11px] text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
+                >
+                  Marcar todas como lidas
+                </button>
+              )}
             </div>
 
             {notifs.length === 0 ? (
               <div className="px-4 py-6 text-center">
-                <p className="text-sm text-gray-400">Tudo em dia</p>
+                <p className="text-sm text-gray-400">Nenhuma notificação</p>
               </div>
             ) : (
               <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                 {notifs.map((n) => (
-                  <button
+                  <div
                     key={n.id}
+                    className={`w-full text-left px-4 py-3 transition-colors flex items-start gap-2.5 cursor-pointer hover:brightness-95 ${
+                      n.lida ? "bg-white" : "bg-blue-50"
+                    }`}
                     onClick={() => handleNotifClick(n)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-start gap-2.5">
+                      {!n.lida ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); marcarLida(n); }}
+                          title="Marcar como lida"
+                          className="w-3 h-3 rounded-full bg-blue-500 shrink-0 mt-1 hover:bg-blue-700 transition-colors cursor-pointer"
+                        />
+                      ) : (
+                        <span className="w-2 h-2 shrink-0" />
+                      )}
                       <span className="text-base mt-0.5 shrink-0">
                         {n.tipo === "pendencia_respondida" ? "💬" : "📄"}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className={`text-sm font-medium truncate ${n.lida ? "text-gray-500" : "text-gray-900"}`}>
                           {n.tipo === "pendencia_respondida"
                             ? `${SUBTIPO_LABEL[n.subtipo ?? ""] ?? n.subtipo} respondido`
                             : n.titulo}
                         </p>
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className="text-xs text-gray-400 truncate">
                           {n.parteNome
                             ? `${n.parteNome}${n.parteType ? ` · ${TIPO_PARTE_LABEL[n.parteType] ?? n.parteType}` : ""}`
                             : (TIPO_PARTE_LABEL[n.parteType ?? ""] ?? "")}
@@ -136,8 +178,7 @@ export default function TopBar() {
                         <p className="text-xs text-gray-400 truncate mt-0.5">{n.processoTitulo}</p>
                       </div>
                       <span className="text-[10px] text-gray-300 shrink-0 mt-0.5">{timeAgo(n.at)}</span>
-                    </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
