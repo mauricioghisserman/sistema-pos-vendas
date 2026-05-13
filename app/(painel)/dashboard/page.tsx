@@ -21,7 +21,7 @@ type ProcessoPrazo = {
   status: string;
   prazo_entrega_doc: string | null;
   prazo_instrumento: string | null;
-  analistas: { nome: string; email: string } | null;
+  hubspot_owner_nome: string | null;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -174,21 +174,33 @@ export default function DashboardPage() {
   const [processos, setProcessos]   = useState<ProcessoPrazo[]>([]);
   const [loading, setLoading]       = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [userEmail, setUserEmail]   = useState<string | null>(null);
+  const [userNome, setUserNome]     = useState<string | null>(null);
   const [filtro, setFiltro]         = useState<"minha" | "geral">("minha");
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
 
-    Promise.all([
-      fetch("/api/tasks?all=true").then((r) => r.json()),
-      fetch("/api/dashboard").then((r) => r.json()),
-    ]).then(([t, p]) => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: analista } = await supabase
+          .from("analistas")
+          .select("nome")
+          .eq("email", user.email)
+          .single();
+        setUserNome(analista?.nome ?? null);
+      }
+
+      const [t, p] = await Promise.all([
+        fetch("/api/tasks?all=true").then((r) => r.json()),
+        fetch("/api/dashboard").then((r) => r.json()),
+      ]);
       setTasks(Array.isArray(t) ? t : []);
       setProcessos(Array.isArray(p) ? p : []);
       setLoading(false);
-    });
+    }
+
+    load();
   }, []);
 
   async function handleToggleTask(taskId: string) {
@@ -204,9 +216,9 @@ export default function DashboardPage() {
   const saudacao = hoje.getHours() < 12 ? "Bom dia" : hoje.getHours() < 18 ? "Boa tarde" : "Boa noite";
   const dataFmt = hoje.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
 
-  // IDs dos processos do analista logado
+  // IDs dos processos do analista logado (por nome do owner no HubSpot)
   const meusProcessoIds = new Set(
-    processos.filter((p) => p.analistas?.email === userEmail).map((p) => p.id)
+    processos.filter((p) => userNome && p.hubspot_owner_nome === userNome).map((p) => p.id)
   );
 
   const processosFiltrados = filtro === "minha"
