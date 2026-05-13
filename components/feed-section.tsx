@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/app/api/processos/feed/route";
 
 type Source = "pv" | "comercial" | "dd";
+type Tipo = { id: string; nome: string };
 
 const TIPO_ICON: Record<string, string> = {
   NOTE: "💬",
@@ -35,8 +36,6 @@ function EngagementCard({ item }: { item: FeedItem }) {
   const [expanded, setExpanded] = useState(false);
   const corpo = item.corpo ?? "";
   const isHtml = /<[a-z][\s\S]*>/i.test(corpo);
-
-  // Para HTML: colapsa via max-height; para texto plano: fatia caracteres
   const COLLAPSE_PX = 160;
 
   return (
@@ -86,11 +85,19 @@ function EngagementCard({ item }: { item: FeedItem }) {
 }
 
 export default function FeedSection({ processoId }: { processoId: string }) {
-  const [source, setSource] = useState<Source>("dd");
+  const [source, setSource] = useState<Source>("pv");
   const [itens, setItens] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [semVinculo, setSemVinculo] = useState(false);
   const [ticketTitulo, setTicketTitulo] = useState<string | null>(null);
+
+  // Registro de atividade
+  const [tipos, setTipos] = useState<Tipo[]>([]);
+  const [tipoSelecionado, setTipoSelecionado] = useState("");
+  const [novoTipoInput, setNovoTipoInput] = useState("");
+  const [texto, setTexto] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const novoTipoRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (src: Source) => {
     setLoading(true);
@@ -109,9 +116,52 @@ export default function FeedSection({ processoId }: { processoId: string }) {
     }
   }, [processoId]);
 
+  useEffect(() => { load(source); }, [source, load]);
+
   useEffect(() => {
-    load(source);
-  }, [source, load]);
+    fetch("/api/atividade-tipos")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setTipos(data); });
+  }, []);
+
+  useEffect(() => {
+    if (tipoSelecionado === "__novo__") novoTipoRef.current?.focus();
+  }, [tipoSelecionado]);
+
+  async function handleRegistrar() {
+    const tipoFinal = tipoSelecionado === "__novo__" ? novoTipoInput.trim() : tipoSelecionado;
+    if (!texto.trim()) return;
+    setSalvando(true);
+
+    try {
+      // Cria novo tipo se necessário
+      if (tipoSelecionado === "__novo__" && tipoFinal) {
+        const res = await fetch("/api/atividade-tipos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome: tipoFinal }),
+        });
+        if (res.ok) {
+          const novo = await res.json();
+          setTipos((prev) => [...prev, novo].sort((a, b) => a.nome.localeCompare(b.nome)));
+          setTipoSelecionado(tipoFinal);
+          setNovoTipoInput("");
+        }
+      }
+
+      await fetch("/api/processos/feed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ processoId, texto: texto.trim(), tipo: tipoFinal || null }),
+      });
+
+      setTexto("");
+      setSource("pv");
+      await load("pv");
+    } finally {
+      setSalvando(false);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -140,24 +190,64 @@ export default function FeedSection({ processoId }: { processoId: string }) {
             <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
           </div>
         )}
-
         {!loading && ticketTitulo && (
-          <p className="text-[11px] text-gray-400 py-2 truncate" title={ticketTitulo}>
-            {ticketTitulo}
-          </p>
+          <p className="text-[11px] text-gray-400 py-2 truncate" title={ticketTitulo}>{ticketTitulo}</p>
         )}
-
         {!loading && semVinculo && (
           <p className="text-xs text-gray-400 text-center py-8">Sem vínculo com deal comercial.</p>
         )}
-
         {!loading && !semVinculo && itens.length === 0 && (
           <p className="text-xs text-gray-400 text-center py-8">Nenhuma atividade registrada.</p>
         )}
-
         {!loading && itens.map((item) => (
           <EngagementCard key={item.id} item={item} />
         ))}
+      </div>
+
+      {/* Área de registro */}
+      <div className="shrink-0 border-t border-gray-100 px-4 py-3 space-y-2">
+        <div className="flex items-center gap-2">
+          {tipoSelecionado === "__novo__" ? (
+            <input
+              ref={novoTipoRef}
+              value={novoTipoInput}
+              onChange={(e) => setNovoTipoInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") { setTipoSelecionado(""); setNovoTipoInput(""); } }}
+              placeholder="Nome do novo tipo..."
+              className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-gray-400"
+            />
+          ) : (
+            <select
+              value={tipoSelecionado}
+              onChange={(e) => setTipoSelecionado(e.target.value)}
+              className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-gray-400 bg-white cursor-pointer"
+            >
+              <option value="">Sem tipo</option>
+              {tipos.map((t) => (
+                <option key={t.id} value={t.nome}>{t.nome}</option>
+              ))}
+              <option value="__novo__">+ Novo tipo...</option>
+            </select>
+          )}
+        </div>
+
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Registrar atividade no Pós-vendas..."
+          rows={3}
+          className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:border-gray-400 placeholder:text-gray-300"
+        />
+
+        <div className="flex justify-end">
+          <button
+            onClick={handleRegistrar}
+            disabled={salvando || !texto.trim() || (tipoSelecionado === "__novo__" && !novoTipoInput.trim())}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {salvando ? "Registrando..." : "Registrar"}
+          </button>
+        </div>
       </div>
     </div>
   );

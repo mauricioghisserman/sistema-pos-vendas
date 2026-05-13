@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 const TOKEN = process.env.HUBSPOT_API_TOKEN;
@@ -99,4 +99,61 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ itens: [] });
+}
+
+export async function POST(request: Request) {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user?.email) return NextResponse.json({ error: "não autenticado" }, { status: 401 });
+
+  const { processoId, texto, tipo } = await request.json();
+  if (!processoId || !texto?.trim()) return NextResponse.json({ error: "dados inválidos" }, { status: 400 });
+
+  const supabase = createServiceClient();
+  const { data: processo } = await supabase
+    .from("processos")
+    .select("hubspot_deal_id")
+    .eq("id", processoId)
+    .single();
+
+  if (!processo?.hubspot_deal_id) return NextResponse.json({ error: "processo não encontrado" }, { status: 404 });
+
+  // Busca owner ID do analista logado no HubSpot pelo email
+  let ownerId: number | null = null;
+  const ownersRes = await fetch(
+    `https://api.hubapi.com/crm/v3/owners?email=${encodeURIComponent(user.email)}&limit=1`,
+    { headers: { Authorization: `Bearer ${TOKEN}` } }
+  );
+  if (ownersRes.ok) {
+    const ownersData = await ownersRes.json();
+    ownerId = ownersData.results?.[0]?.id ?? null;
+  }
+
+  const corpo = tipo
+    ? `<strong>[${tipo}]</strong><br/><br/>${texto.trim().replace(/\n/g, "<br/>")}`
+    : texto.trim().replace(/\n/g, "<br/>");
+
+  const engRes = await fetch("https://api.hubapi.com/engagements/v1/engagements", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      engagement: {
+        active: true,
+        ...(ownerId ? { ownerId } : {}),
+        type: "NOTE",
+        timestamp: Date.now(),
+      },
+      associations: { dealIds: [Number(processo.hubspot_deal_id)] },
+      metadata: { body: corpo },
+    }),
+  });
+
+  if (!engRes.ok) {
+    const err = await engRes.text();
+    console.error("[feed/post]", err);
+    return NextResponse.json({ error: "erro ao criar nota no HubSpot" }, { status: 500 });
+  }
+
+  const eng = await engRes.json();
+  return NextResponse.json({ ok: true, id: eng.engagement?.id });
 }
