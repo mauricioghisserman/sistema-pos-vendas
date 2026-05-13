@@ -118,13 +118,13 @@ async function processEventos(eventos: Record<string, unknown>[]) {
         .single();
       if (!proc) continue;
       const pid = proc.id;
-      const { data: partes } = await supabase.from("partes").select("id").eq("processo_id", pid);
-      const parteIds = (partes ?? []).map((p: { id: string }) => p.id);
-      if (parteIds.length > 0) {
-        await supabase.from("checklist_items").delete().in("parte_id", parteIds);
+      // Coleta checklist_item IDs para deletar documentos (que referenciam por checklist_item_id)
+      const { data: checklistRows } = await supabase.from("checklist_items").select("id").eq("processo_id", pid);
+      const checklistIds = (checklistRows ?? []).map((c: { id: string }) => c.id);
+      if (checklistIds.length > 0) {
+        await supabase.from("documentos").delete().in("checklist_item_id", checklistIds);
       }
       await supabase.from("checklist_items").delete().eq("processo_id", pid);
-      await supabase.from("documentos").delete().eq("processo_id", pid);
       await supabase.from("tasks").delete().eq("processo_id", pid);
       await supabase.from("pendencias").delete().eq("processo_id", pid);
       await supabase.from("atividades").delete().eq("processo_id", pid);
