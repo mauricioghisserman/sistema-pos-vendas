@@ -167,6 +167,13 @@ async function processEventos(eventos: Record<string, unknown>[]) {
     const endereco = [props.bairro, props.cidade].filter(Boolean).join(", ");
     const ccv_url = await resolverCcvUrl(props.anexo_ccv ?? null);
 
+    // Coleta emails do pós-vendas (fonte da verdade dos participantes)
+    const emailsPv = [
+      ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}`]).filter(Boolean).map((email) => ({ email: email!, tipo: "vendedor" })),
+      ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}___comprador`]).filter(Boolean).map((email) => ({ email: email!, tipo: "comprador" })),
+    ];
+    const emails_pos_vendas = emailsPv.length > 0 ? emailsPv : null;
+
     // Busca nome do responsável no HubSpot
     let hubspot_owner_nome: string | null = null;
     const ownerId = props.hubspot_owner_id;
@@ -209,6 +216,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           hubspot_owner_nome,
           hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
           ccv_url,
+          emails_pos_vendas,
         })
         .select("id")
         .single();
@@ -343,6 +351,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           hubspot_owner_nome,
           hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
           ...(ccv_url !== null ? { ccv_url } : {}),
+          emails_pos_vendas,
         })
         .eq("id", processoId);
     }

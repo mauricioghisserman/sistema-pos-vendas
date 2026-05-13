@@ -15,6 +15,7 @@ type Processo = {
   prazo_entrega_doc: string | null; prazo_assinatura: string | null;
   prazo_instrumento: string | null; prazo_registro: string | null;
   hubspot_owner_nome: string | null;
+  emails_pos_vendas: { email: string; tipo: string }[] | null;
   analistas: { nome: string; email: string } | null;
 };
 type Comissao = { corretor: string | null; imobiliaria: string | null; papel: string | null }
@@ -571,6 +572,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
   const [comissoes, setComissoes] = useState<Comissao[]>([]);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [responsavelComercial, setResponsavelComercial] = useState<string | null>(null);
+  const [responsavelJuridico, setResponsavelJuridico] = useState<string | null>(null);
   const [analistas, setAnalistas] = useState<{ nome: string; email: string }[]>([]);
   const [atualizandoOwner, setAtualizandoOwner] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -591,13 +593,14 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
     const supabase = createClient();
 
     Promise.all([
-      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,ccv_url,hubspot_owner_nome,analistas(nome,email)").eq("id", processoId).single(),
+      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,ccv_url,hubspot_owner_nome,emails_pos_vendas,analistas(nome,email)").eq("id", processoId).single(),
       supabase.from("partes").select("id,tipo,nome,email,token_acesso").eq("processo_id", processoId).order("tipo"),
       supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido").eq("processo_id", processoId).order("ordem"),
       fetch(`/api/processos/comissoes?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
       fetch(`/api/pendencias?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
       fetch(`/api/processos/responsavel-comercial?processoId=${processoId}`).then((r) => r.json()).catch(() => ({ nome: null })),
-    ]).then(([p, pa, ch, cm, pend, rc]) => {
+      fetch(`/api/processos/responsavel-juridico?processoId=${processoId}`).then((r) => r.json()).catch(() => ({ nome: null })),
+    ]).then(([p, pa, ch, cm, pend, rc, rj]) => {
       const analistas = p.data?.analistas;
       setProcesso({
         ...p.data!,
@@ -608,6 +611,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       setComissoes(Array.isArray(cm) ? cm : []);
       setPendencias(Array.isArray(pend) ? pend : []);
       setResponsavelComercial(rc?.nome ?? null);
+      setResponsavelJuridico(rj?.nome ?? null);
       setLoading(false);
 
       // Busca lista de analistas para o seletor
@@ -774,6 +778,22 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                   </div>
                 )}
 
+                {processo.emails_pos_vendas && processo.emails_pos_vendas.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Participantes do PV</h3>
+                    <div className="border border-gray-100 rounded-lg divide-y divide-gray-50">
+                      {processo.emails_pos_vendas.map((p, i) => (
+                        <div key={i} className="px-3 py-2 flex items-center gap-2">
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${p.tipo === "comprador" ? "bg-blue-50 text-blue-600" : "bg-amber-50 text-amber-600"}`}>
+                            {p.tipo === "comprador" ? "Comprador" : "Vendedor"}
+                          </span>
+                          <span className="text-xs text-gray-700 truncate">{p.email}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Partes</h3>
                   <div className="space-y-2">
@@ -838,6 +858,15 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Responsável Comercial</h3>
                     <div className="border border-gray-100 rounded-lg px-3 py-2.5">
                       <p className="text-sm text-gray-900">{responsavelComercial}</p>
+                    </div>
+                  </div>
+                )}
+
+                {responsavelJuridico && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Responsável Jurídico</h3>
+                    <div className="border border-gray-100 rounded-lg px-3 py-2.5">
+                      <p className="text-sm text-gray-900">{responsavelJuridico}</p>
                     </div>
                   </div>
                 )}
