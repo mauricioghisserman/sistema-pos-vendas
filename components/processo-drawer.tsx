@@ -14,6 +14,7 @@ type Processo = {
   observacoes: string | null; ccv_url: string | null;
   prazo_entrega_doc: string | null; prazo_assinatura: string | null;
   prazo_instrumento: string | null; prazo_registro: string | null;
+  hubspot_owner_nome: string | null;
   analistas: { nome: string; email: string } | null;
 };
 type Comissao = { corretor: string | null; imobiliaria: string | null; papel: string | null }
@@ -569,6 +570,9 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [comissoes, setComissoes] = useState<Comissao[]>([]);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
+  const [responsavelComercial, setResponsavelComercial] = useState<string | null>(null);
+  const [analistas, setAnalistas] = useState<{ nome: string; email: string }[]>([]);
+  const [atualizandoOwner, setAtualizandoOwner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [enviandoEmail, setEnviandoEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState<"idle" | "ok" | "erro">("idle");
@@ -587,12 +591,13 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
     const supabase = createClient();
 
     Promise.all([
-      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,ccv_url,analistas(nome,email)").eq("id", processoId).single(),
+      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,ccv_url,hubspot_owner_nome,analistas(nome,email)").eq("id", processoId).single(),
       supabase.from("partes").select("id,tipo,nome,email,token_acesso").eq("processo_id", processoId).order("tipo"),
       supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido").eq("processo_id", processoId).order("ordem"),
       fetch(`/api/processos/comissoes?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
       fetch(`/api/pendencias?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
-    ]).then(([p, pa, ch, cm, pend]) => {
+      fetch(`/api/processos/responsavel-comercial?processoId=${processoId}`).then((r) => r.json()).catch(() => ({ nome: null })),
+    ]).then(([p, pa, ch, cm, pend, rc]) => {
       const analistas = p.data?.analistas;
       setProcesso({
         ...p.data!,
@@ -602,7 +607,15 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
       setChecklist(ch.data ?? []);
       setComissoes(Array.isArray(cm) ? cm : []);
       setPendencias(Array.isArray(pend) ? pend : []);
+      setResponsavelComercial(rc?.nome ?? null);
       setLoading(false);
+
+      // Busca lista de analistas para o seletor
+      const supabaseClient = createClient();
+      supabaseClient.from("analistas").select("nome, email").order("nome").then(({ data }) => {
+        if (data) setAnalistas(data);
+      });
+
     });
   }, [processoId]);
 
@@ -794,12 +807,37 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                   onRefresh={refreshPendencias}
                 />
 
-                {processo.analistas && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Responsável</h3>
+                  <select
+                    value={processo.hubspot_owner_nome ?? ""}
+                    disabled={atualizandoOwner}
+                    onChange={async (e) => {
+                      const nome = e.target.value || null;
+                      const analista = analistas.find((a) => a.nome === nome) ?? null;
+                      setAtualizandoOwner(true);
+                      await fetch("/api/processos/responsavel", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ processoId: processo.id, analistaEmail: analista?.email ?? null, analistaNome: nome }),
+                      });
+                      setProcesso((p) => p ? { ...p, hubspot_owner_nome: nome } : p);
+                      setAtualizandoOwner(false);
+                    }}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-gray-400 bg-white cursor-pointer disabled:opacity-50"
+                  >
+                    <option value="">Sem responsável</option>
+                    {analistas.map((a) => (
+                      <option key={a.email} value={a.nome}>{a.nome}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {responsavelComercial && (
                   <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Responsável</h3>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Responsável Comercial</h3>
                     <div className="border border-gray-100 rounded-lg px-3 py-2.5">
-                      <p className="text-sm text-gray-900">{processo.analistas.nome}</p>
-                      <p className="text-xs text-gray-400">{processo.analistas.email}</p>
+                      <p className="text-sm text-gray-900">{responsavelComercial}</p>
                     </div>
                   </div>
                 )}

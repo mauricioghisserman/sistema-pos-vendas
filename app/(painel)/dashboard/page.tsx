@@ -218,7 +218,7 @@ export default function DashboardPage() {
 
   // IDs dos processos do analista logado (por nome do owner no HubSpot)
   const meusProcessoIds = new Set(
-    processos.filter((p) => userNome && p.hubspot_owner_nome === userNome).map((p) => p.id)
+    processos.filter((p) => !p.hubspot_owner_nome || (userNome && p.hubspot_owner_nome === userNome)).map((p) => p.id)
   );
 
   const processosFiltrados = filtro === "minha"

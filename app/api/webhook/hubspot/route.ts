@@ -135,7 +135,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
 
     // Busca os dados completos do deal no HubSpot
     const dealRes = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes`,
+      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes,pv__pos_vendas`,
       { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
     );
 
@@ -144,10 +144,24 @@ async function processEventos(eventos: Record<string, unknown>[]) {
     const props = deal.properties as Record<string, string | null>;
 
     const stageId = props.dealstage ?? "";
-    const status = STAGE_MAP[stageId];
+    let status = STAGE_MAP[stageId];
 
     // Ignora deals fora do pipeline de pós-vendas
     if (!status) continue;
+
+    // "CCV interno s/ pós-vendas" → força sem_pos_vendas em ambos os sistemas
+    const SEM_PV_STAGE = "1089645944";
+    if (props.pv__pos_vendas === "CCV interno s/ pós-vendas" && status !== "sem_pos_vendas") {
+      status = "sem_pos_vendas";
+      fetch(
+        `https://api.hubapi.com/crm/v3/objects/deals/${dealId}`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: { dealstage: SEM_PV_STAGE } }),
+        }
+      ).catch(console.error);
+    }
 
     const titulo = props.dealname ?? `Deal ${dealId}`;
     const endereco = [props.bairro, props.cidade].filter(Boolean).join(", ");

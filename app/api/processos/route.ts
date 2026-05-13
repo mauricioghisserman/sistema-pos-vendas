@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
   if (status) query = query.eq("status", status);
   if (search) query = query.ilike("titulo", `%${search}%`);
-  if (owner)  query = query.eq("hubspot_owner_nome", owner);
+  if (owner)  query = query.or(`hubspot_owner_nome.eq.${owner},hubspot_owner_nome.is.null`);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
