@@ -31,21 +31,13 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center" style={{ backgroundColor: "#e8e5df" }}>
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: `linear-gradient(135deg, #e8e5df 0%, #e8e5df 40%, #d9d6cf 40%, #d9d6cf 60%, #eeebe6 60%, #eeebe6 100%)`,
-        }}
-      />
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          top: "15%", left: "-5%", width: "55%", height: "120%",
-          background: "#dedad3",
-          transform: "skewY(-12deg)",
-          transformOrigin: "top left",
-        }}
+    <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
+      <Image
+        src="/capa.png"
+        alt=""
+        fill
+        className="object-cover"
+        priority
       />
 
       <div className="relative z-10 w-full max-w-sm px-4">
