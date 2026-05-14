@@ -135,7 +135,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
 
     // Busca os dados completos do deal no HubSpot
     const dealRes = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes,pv__pos_vendas`,
+      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes,pv__pos_vendas,pv__instrumento_definitivo`,
       { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
     );
 
@@ -217,6 +217,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
           ccv_url,
           emails_pos_vendas,
+          instrumento_definitivo: props.pv__instrumento_definitivo ?? null,
         })
         .select("id")
         .single();
@@ -352,6 +353,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           hubspot_deal_id_comercial: props.pv_legal_center__hubspot_deal_id_comercial ?? null,
           ...(ccv_url !== null ? { ccv_url } : {}),
           emails_pos_vendas,
+          instrumento_definitivo: props.pv__instrumento_definitivo ?? null,
         })
         .eq("id", processoId);
     }

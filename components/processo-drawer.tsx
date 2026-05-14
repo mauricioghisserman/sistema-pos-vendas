@@ -15,6 +15,7 @@ type Processo = {
   prazo_entrega_doc: string | null; prazo_assinatura: string | null;
   prazo_instrumento: string | null; prazo_registro: string | null;
   hubspot_owner_nome: string | null;
+  instrumento_definitivo: string | null;
   emails_pos_vendas: { email: string; tipo: string }[] | null;
   analistas: { nome: string; email: string } | null;
 };
@@ -593,7 +594,7 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
     const supabase = createClient();
 
     Promise.all([
-      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,ccv_url,hubspot_owner_nome,emails_pos_vendas,analistas(nome,email)").eq("id", processoId).single(),
+      supabase.from("processos").select("id,titulo,status,hubspot_deal_id,observacoes,prazo_entrega_doc,prazo_assinatura,prazo_instrumento,prazo_registro,ccv_url,hubspot_owner_nome,instrumento_definitivo,emails_pos_vendas,analistas(nome,email)").eq("id", processoId).single(),
       supabase.from("partes").select("id,tipo,nome,email,token_acesso").eq("processo_id", processoId).order("tipo"),
       supabase.from("checklist_items").select("id,nome,status,categoria,parte_id,obrigatorio,motivo_reprovacao,ordem,ia_valido").eq("processo_id", processoId).order("ordem"),
       fetch(`/api/processos/comissoes?processoId=${processoId}`).then((r) => r.json()).catch(() => []),
@@ -752,6 +753,15 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                     )}
                   </div>
                 </div>
+
+                {processo.instrumento_definitivo && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Instrumento Definitivo</h3>
+                    <div className="border border-gray-100 rounded-lg px-3 py-2.5">
+                      <p className="text-sm text-gray-900">{processo.instrumento_definitivo}</p>
+                    </div>
+                  </div>
+                )}
 
                 {comissoes.length > 0 && (
                   <div>
