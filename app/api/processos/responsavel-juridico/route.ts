@@ -12,15 +12,15 @@ export async function GET(request: Request) {
   const supabase = createServiceClient();
   const { data: processo } = await supabase
     .from("processos")
-    .select("hubspot_deal_id")
+    .select("hubspot_deal_id_comercial")
     .eq("id", processoId)
     .single();
 
-  if (!processo?.hubspot_deal_id) return NextResponse.json({ nome: null });
+  if (!processo?.hubspot_deal_id_comercial) return NextResponse.json({ nome: null });
 
-  // Busca tickets associados ao deal de PV
+  // Busca tickets associados ao deal comercial (onde ficam os tickets LegalOPS)
   const assocRes = await fetch(
-    `https://api.hubapi.com/crm/v3/objects/deals/${processo.hubspot_deal_id}/associations/tickets`,
+    `https://api.hubapi.com/crm/v3/objects/deals/${processo.hubspot_deal_id_comercial}/associations/tickets`,
     { headers: { Authorization: `Bearer ${TOKEN}` } }
   );
   if (!assocRes.ok) return NextResponse.json({ nome: null });
