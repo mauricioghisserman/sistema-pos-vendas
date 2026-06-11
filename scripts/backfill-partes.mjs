@@ -86,7 +86,7 @@ async function main() {
   const { data: processos } = await supabase
     .from("processos")
     .select("id, hubspot_deal_id, titulo")
-    .eq("status", "fechado_pelo_comercial");
+    .not("hubspot_deal_id", "is", null);
 
   if (!processos?.length) { console.log("Nenhum processo encontrado."); return; }
 
