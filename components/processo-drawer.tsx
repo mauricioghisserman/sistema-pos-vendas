@@ -794,8 +794,8 @@ export default function ProcessoDrawer({ processoId, onClose }: Props) {
                     <div className="border border-gray-100 rounded-lg divide-y divide-gray-50">
                       {processo.emails_pos_vendas.map((p, i) => (
                         <div key={i} className="px-3 py-2 flex items-center gap-2">
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${p.tipo === "comprador" ? "bg-blue-50 text-blue-600" : "bg-amber-50 text-amber-600"}`}>
-                            {p.tipo === "comprador" ? "Comprador" : "Vendedor"}
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${p.tipo === "comprador" ? "bg-blue-50 text-blue-600" : p.tipo === "demais_envolvidos" ? "bg-purple-50 text-purple-600" : "bg-amber-50 text-amber-600"}`}>
+                            {p.tipo === "comprador" ? "Comprador" : p.tipo === "demais_envolvidos" ? "Demais Envolvidos" : "Vendedor"}
                           </span>
                           <span className="text-xs text-gray-700 truncate">{p.email}</span>
                         </div>

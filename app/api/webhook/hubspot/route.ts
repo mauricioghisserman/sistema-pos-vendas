@@ -135,7 +135,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
 
     // Busca os dados completos do deal no HubSpot
     const dealRes = await fetch(
-      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes,pv__pos_vendas,pv__instrumento_definitivo`,
+      `https://api.hubapi.com/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,hubspot_owner_id,pv__prazo_entrega_doc,pv__prazo_assinatura,pv__prazo_instrumento,pv__prazo_registro,pv__e_mail_1,pv__e_mail_2,pv__e_mail_3,pv__e_mail_4,pv__e_mail_5,pv__e_mail_6,pv__e_mail_1___comprador,pv__e_mail_2___comprador,pv__e_mail_3___comprador,pv__e_mail_4___comprador,pv__e_mail_5___comprador,pv__e_mail_6___comprador,pv__e_mail_1___demais_envolvidos,pv__e_mail_2___demais_envolvidos,pv__e_mail_3___demais_envolvidos,pv__e_mail_4___demais_envolvidos,pv__e_mail_5___demais_envolvidos,pv__e_mail_6___demais_envolvidos,codigo_do_imovel,bairro,cidade,pv__observacoes_pos_vendas,pv_legal_center__hubspot_deal_id_comercial,anexo_ccv,ia_checklist_das_partes,pv__pos_vendas,pv__instrumento_definitivo`,
       { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
     );
 
@@ -171,6 +171,7 @@ async function processEventos(eventos: Record<string, unknown>[]) {
     const emailsPv = [
       ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}`]).filter(Boolean).map((email) => ({ email: email!, tipo: "vendedor" })),
       ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}___comprador`]).filter(Boolean).map((email) => ({ email: email!, tipo: "comprador" })),
+      ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}___demais_envolvidos`]).filter(Boolean).map((email) => ({ email: email!, tipo: "demais_envolvidos" })),
     ];
     const emails_pos_vendas = emailsPv.length > 0 ? emailsPv : null;
 
@@ -356,6 +357,80 @@ async function processEventos(eventos: Record<string, unknown>[]) {
           instrumento_definitivo: props.pv__instrumento_definitivo ?? null,
         })
         .eq("id", processoId);
+
+      // Se ainda não tem partes, tenta criá-las agora (webhook pode ter chegado antes das associações tipadas)
+      const { count: partesCount } = await supabase
+        .from("partes")
+        .select("id", { count: "exact", head: true })
+        .eq("processo_id", processoId);
+
+      if ((partesCount ?? 0) === 0) {
+        const partesParaInserir: { processo_id: string; tipo: string; nome: string; email: string }[] = [];
+        const dealIdComercial = props.pv_legal_center__hubspot_deal_id_comercial ?? dealId;
+        const assocRes = await fetch(
+          `https://api.hubapi.com/crm/v3/objects/deals/${dealIdComercial}/associations/2-57453831`,
+          { headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}` } }
+        );
+        if (assocRes.ok) {
+          const assocData = await assocRes.json();
+          const assocResults: { id: string; type: string }[] = assocData.results ?? [];
+          const tipoMap: Record<string, string> = {};
+          for (const r of assocResults) {
+            if (r.type.includes("compradora")) tipoMap[r.id] = "comprador";
+            else if (r.type.includes("vendedora")) tipoMap[r.id] = "vendedor";
+          }
+          const parteIds = Object.keys(tipoMap);
+          if (parteIds.length > 0) {
+            const batchRes = await fetch(
+              `https://api.hubapi.com/crm/v3/objects/2-57453831/batch/read`,
+              {
+                method: "POST",
+                headers: { Authorization: `Bearer ${process.env.HUBSPOT_API_TOKEN}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ inputs: parteIds.map((id) => ({ id })), properties: ["nome", "email"] }),
+              }
+            );
+            if (batchRes.ok) {
+              const batchData = await batchRes.json();
+              for (const parte of batchData.results ?? []) {
+                const tipo = tipoMap[parte.id];
+                if (!tipo) continue;
+                const p = parte.properties as Record<string, string | null>;
+                partesParaInserir.push({ processo_id: processoId, tipo, nome: p.nome ?? "", email: p.email ?? "" });
+              }
+            }
+          }
+        }
+        // Fallback: campos legados
+        if (partesParaInserir.length === 0) {
+          [1,2,3,4,5,6].forEach((i) => {
+            const email = props[`pv__e_mail_${i}___comprador`];
+            if (email) partesParaInserir.push({ processo_id: processoId, tipo: "comprador", nome: email.split("@")[0], email });
+          });
+          [1,2,3,4,5,6].forEach((i) => {
+            const email = props[`pv__e_mail_${i}`];
+            if (email) partesParaInserir.push({ processo_id: processoId, tipo: "vendedor", nome: email.split("@")[0], email });
+          });
+        }
+        if (partesParaInserir.length > 0) {
+          const { data: partesInseridas } = await supabase.from("partes").insert(partesParaInserir).select("id, tipo, nome");
+          const { data: template } = await supabase.from("checklist_template").select("*").order("ordem");
+          if (template && partesInseridas) {
+            const compradores = partesInseridas.filter((p: { id: string; tipo: string }) => p.tipo === "comprador");
+            const vendedores = partesInseridas.filter((p: { id: string; tipo: string }) => p.tipo === "vendedor");
+            const checklistItems: object[] = [];
+            for (const t of template) {
+              if (t.categoria === "comprador") {
+                compradores.forEach((p: { id: string; tipo: string }) => checklistItems.push({ processo_id: processoId, parte_id: p.id, categoria: t.categoria, nome: t.nome, obrigatorio: t.obrigatorio, ordem: t.ordem }));
+              } else if (t.categoria === "vendedor") {
+                vendedores.forEach((p: { id: string; tipo: string }) => checklistItems.push({ processo_id: processoId, parte_id: p.id, categoria: t.categoria, nome: t.nome, obrigatorio: t.obrigatorio, ordem: t.ordem }));
+              } else {
+                checklistItems.push({ processo_id: processoId, categoria: t.categoria, nome: t.nome, obrigatorio: t.obrigatorio, ordem: t.ordem });
+              }
+            }
+            if (checklistItems.length > 0) await supabase.from("checklist_items").insert(checklistItems);
+          }
+        }
+      }
     }
   }
 

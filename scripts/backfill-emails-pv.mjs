@@ -25,6 +25,7 @@ const supabase = createClient(
 const EMAIL_PROPS = [
   ...[1,2,3,4,5,6].map((i) => `pv__e_mail_${i}`),
   ...[1,2,3,4,5,6].map((i) => `pv__e_mail_${i}___comprador`),
+  ...[1,2,3,4,5,6].map((i) => `pv__e_mail_${i}___demais_envolvidos`),
 ].join(",");
 
 async function fetchEmailsPv(dealId) {
@@ -39,6 +40,7 @@ async function fetchEmailsPv(dealId) {
   const emails = [
     ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}`]).filter(Boolean).map((email) => ({ email, tipo: "vendedor" })),
     ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}___comprador`]).filter(Boolean).map((email) => ({ email, tipo: "comprador" })),
+    ...[1,2,3,4,5,6].map((i) => props[`pv__e_mail_${i}___demais_envolvidos`]).filter(Boolean).map((email) => ({ email, tipo: "demais_envolvidos" })),
   ];
   return emails.length > 0 ? emails : null;
 }
@@ -52,7 +54,6 @@ async function main() {
     const { data: processos } = await supabase
       .from("processos")
       .select("id, hubspot_deal_id")
-      .is("emails_pos_vendas", null)
       .not("hubspot_deal_id", "is", null)
       .range(offset, offset + PAGE - 1);
 
